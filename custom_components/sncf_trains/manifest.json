@@ -1,7 +1,7 @@
 {
   "domain": "sncf_trains",
   "name": "SNCF Trains",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "documentation": "https://github.com/Master13011/SNCF-API-HA",
   "issue_tracker": "https://github.com/Master13011/SNCF-API-HA/issues",
   "loggers": ["custom_components.sncf_trains"],
