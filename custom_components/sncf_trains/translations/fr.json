@@ -1,0 +1,40 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Connexion à Mailcow",
+        "data": {
+          "base_url": "URL de base de Mailcow (ex. https://mail.domaine.fr)",
+          "api_key": "Clé API",
+          "disable_check_at_night": "Désactiver la vérification des mises à jour entre 23h00 et 5h00",
+          "scan_interval": "Intervalle de scan (en minutes)"
+        },
+        "data_description": {
+          "base_url": "L'URL de base de votre installation Mailcow",
+          "api_key": "La clé API de votre installation Mailcow",
+          "disable_check_at_night": "Désactive la vérification des entités pendant la nuit (de 23h00 à 5h00)",
+          "scan_interval": "Fréquence de vérification des entités Mailcow (en minutes)"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Impossible de se connecter, vérifiez l'URL et la clé API",
+      "invalid_auth": "Clé API invalide"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Options Mailcow",
+        "data": {
+          "disable_check_at_night": "Désactiver la vérification des entités entre 23h00 et 5h00",
+          "scan_interval": "Intervalle de scan (en minutes)"
+        },
+        "data_description": {
+          "disable_check_at_night": "Désactive la vérification des entités pendant la nuit (de 23h00 à 5h00)",
+          "scan_interval": "Fréquence de vérification des entités Mailcow (en minutes)"
+        }
+      }
+    }
+  }
+}
