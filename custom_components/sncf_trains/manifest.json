@@ -5,7 +5,7 @@
   "documentation": "https://github.com/Master13011/SNCF-API-HA",
   "issue_tracker": "https://github.com/Master13011/SNCF-API-HA/issues",
   "loggers": ["custom_components.sncf_trains"],
-  "requirements": [aiohttp],
+  "requirements": ["aiohttp"],
   "dependencies": [],
   "codeowners": ["@Master13011"],
   "config_flow": true,
