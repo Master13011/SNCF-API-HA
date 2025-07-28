@@ -1,33 +1,18 @@
-import aiohttp
-from datetime import datetime
-from .const import SNCF_API_BASE
+import requests
 
-async def fetch_departures(api_key, station_code, from_dt, to_dt):
-    headers = {"Authorization": api_key}
-    results = []
-    async with aiohttp.ClientSession() as session:
-        url = f"{SNCF_API_BASE}/stop_areas/stop_area:SNCF:{station_code}/departures?from_datetime={from_dt.strftime('%Y%m%dT%H%M%S')}&duration=7200"
-        async with session.get(url, headers=headers) as resp:
-            if resp.status != 200:
-                return []
-            data = await resp.json()
-            for d in data.get("departures", []):
-                stop_time = d["stop_date_time"]
-                dt = datetime.strptime(stop_time["departure_date_time"], "%Y%m%dT%H%M%S")
-                delay = int(stop_time.get("departure_delay", 0)) // 60
-                status = d.get("status", "on time")
-                if status == "cancelled":
-                    status_text = "Annulé"
-                elif delay > 0:
-                    status_text = f"Retardé {delay} min"
-                else:
-                    status_text = "À l'heure"
+API_URL = "https://api.sncf.com/v1/coverage/sncf"
 
-                results.append({
-                    "heure": dt.strftime("%H:%M"),
-                    "destination": d["display_informations"]["direction"],
-                    "train": d["display_informations"]["headsign"],
-                    "mode": d["display_informations"].get("commercial_mode", "train"),
-                    "status": status_text
-                })
-    return results
+def search_stations(token, query):
+    """Recherche de stations via API SNCF avec param q=query."""
+    headers = {"Authorization": f"Basic {token}"}
+    r = requests.get(f"{API_URL}/stop_areas?q={query}", headers=headers, timeout=10)
+    r.raise_for_status()
+    return r.json().get("stop_areas", [])
+
+def fetch_departures(token, stop_area_id, max_count=20):
+    """Récupère les départs en temps réel pour un stop_area donné."""
+    headers = {"Authorization": f"Basic {token}"}
+    url = f"{API_URL}/stop_areas/{stop_area_id}/departures?data_freshness=realtime&count={max_count}"
+    r = requests.get(url, headers=headers, timeout=10)
+    r.raise_for_status()
+    return r.json().get("departures", [])
