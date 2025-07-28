@@ -1,14 +1,16 @@
 {
   "domain": "sncf_trains",
   "name": "SNCF Trains",
-  "version": "1.0.1",
-  "documentation": "https://github.com/yourrepo/sncf_trains",
+  "version": "1.0.0",
+  "documentation": "https://github.com/Master13011/SNCF-API-HA",
+  "issue_tracker": "https://github.com/Master13011/SNCF-API-HA/issues",
+  "loggers": ["custom_components.sncf_trains"],
   "requirements": [],
   "dependencies": [],
-  "codeowners": ["@yourgithub"],
+  "codeowners": ["@Master13011"],
+  "config_flow": true,
   "iot_class": "cloud_polling",
   "integration_type": "sensor",
   "after_dependencies": [],
-  "is_built_in": false,
   "homeassistant": "2024.5.0"
 }
