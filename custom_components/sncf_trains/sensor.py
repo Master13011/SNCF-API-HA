@@ -1,33 +1,28 @@
+import logging
 from datetime import datetime
 from homeassistant.helpers.entity import Entity
-from .const import DOMAIN, CONF_API_KEY, CONF_STATION, CONF_FROM_HOUR, CONF_TO_HOUR
-from .api import fetch_departures
+from .api import fetch_departures, search_stations
+from .const import DOMAIN, CONF_TOKEN, CONF_GARE, CONF_START, CONF_END
 
-async def async_setup_entry(hass, config_entry, async_add_entities):
-    api_key = config_entry.data[CONF_API_KEY]
-    station_code = config_entry.data[CONF_STATION]
-    from_hour = config_entry.data[CONF_FROM_HOUR]
-    to_hour = config_entry.data[CONF_TO_HOUR]
+_LOGGER = logging.getLogger(__name__)
 
-    async_add_entities([
-        SNCFTrainSensor(api_key, station_code, from_hour, to_hour)
-    ])
+async def async_setup_entry(hass, entry, async_add_entities):
+    async_add_entities([SNCFTrainSensor(entry)])
 
 class SNCFTrainSensor(Entity):
-    def __init__(self, api_key, station_code, from_hour, to_hour):
-        self._api_key = api_key
-        self._station_code = station_code
-        self._from_hour = from_hour
-        self._to_hour = to_hour
+
+    def __init__(self, entry):
+        self._entry = entry
+        self._api_token = entry.data[CONF_TOKEN]
+        self._station_id = entry.data[CONF_GARE]
+        self._time_start = entry.data.get(CONF_START, "06:00")
+        self._time_end = entry.data.get(CONF_END, "22:00")
         self._state = None
-        self._attributes = {
-            "last_update": None,
-            "trains": []
-        }
+        self._attributes = {}
 
     @property
     def name(self):
-        return "SNCF Trains"
+        return f"SNCF Trains ({self._station_id})"
 
     @property
     def state(self):
@@ -38,11 +33,52 @@ class SNCFTrainSensor(Entity):
         return self._attributes
 
     async def async_update(self):
-        now = datetime.now()
-        start_dt = now.replace(hour=int(self._from_hour[:2]), minute=int(self._from_hour[3:]), second=0)
-        end_dt = now.replace(hour=int(self._to_hour[:2]), minute=int(self._to_hour[3:]), second=0)
+        _LOGGER.debug("Mise à jour du capteur SNCF Trains")
+        # Récupère les départs bruts
+        try:
+            departures = await self.hass.async_add_executor_job(
+                fetch_departures, self._api_token, self._station_id)
+        except Exception as e:
+            _LOGGER.error(f"Erreur fetch_departures SNCF : {e}")
+            self._state = "Erreur API"
+            self._attributes = {}
+            return
 
-        results = await fetch_departures(self._api_key, self._station_code, start_dt, end_dt)
-        self._state = len(results)
-        self._attributes["last_update"] = now.strftime("%Y-%m-%d %H:%M:%S")
-        self._attributes["trains"] = results
+        try:
+            st = datetime.strptime(self._time_start, "%H:%M").time()
+            et = datetime.strptime(self._time_end, "%H:%M").time()
+        except Exception as e:
+            _LOGGER.error(f"Erreur parse heure filtre : {e}")
+            st = datetime.strptime("06:00", "%H:%M").time()
+            et = datetime.strptime("22:00", "%H:%M").time()
+
+        trains = []
+        for train in departures:
+            try:
+                dt_str = train["stop_date_time"]["departure_date_time"]
+                dt = datetime.strptime(dt_str, "%Y%m%dT%H%M%S")
+                if st <= dt.time() <= et:
+                    base_dt_str = train["stop_date_time"]["base_departure_date_time"]
+                    base_dt = datetime.strptime(base_dt_str, "%Y%m%dT%H%M%S")
+
+                    delay = int((dt - base_dt).total_seconds() // 60)
+
+                    infos = train.get("display_informations", {}).get("additional_informations", [])
+                    canceled = any("canceled" in info.lower() for info in infos)
+
+                    trains.append({
+                        "time": dt.strftime("%H:%M"),
+                        "destination": train["display_informations"].get("direction"),
+                        "retard": delay,
+                        "annule": canceled,
+                    })
+            except Exception as e:
+                _LOGGER.debug(f"Erreur parsing train: {e}")
+
+        self._state = len(trains)
+        self._attributes = {
+            "station": self._station_id,
+            "trains": trains,
+            "time_start": self._time_start,
+            "time_end": self._time_end
+        }
