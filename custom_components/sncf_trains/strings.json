@@ -1,0 +1,28 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Entrez la clé API SNCF"
+      },
+      "departure_city": {
+        "title": "Choisissez la ville de départ"
+      },
+      "departure_station": {
+        "title": "Choisissez la gare de départ"
+      },
+      "arrival_city": {
+        "title": "Choisissez la ville d'arrivée"
+      },
+      "arrival_station": {
+        "title": "Choisissez la gare d'arrivée"
+      },
+      "time_range": {
+        "title": "Choisissez la plage horaire"
+      }
+    },
+    "error": {
+      "no_stations_found": "Aucune gare trouvée pour cette ville.",
+      "already_configured": "Ce trajet est déjà configuré."
+    }
+  }
+}
