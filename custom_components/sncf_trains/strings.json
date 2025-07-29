@@ -22,6 +22,7 @@
     },
     "error": {
       "no_stations_found": "Aucune gare trouvée pour cette ville.",
+      "invalid_api_key": "Clé API invalide. Veuillez vérifier et réessayer.",
       "already_configured": "Ce trajet est déjà configuré."
     }
   }
