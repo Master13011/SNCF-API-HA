@@ -4,3 +4,5 @@ CONF_FROM = "from_station"
 CONF_TO = "to_station"
 CONF_TIME_START = "time_start"
 CONF_TIME_END = "time_end"
+
+ATTRIBUTION = "Data provided by api.sncf.com"
