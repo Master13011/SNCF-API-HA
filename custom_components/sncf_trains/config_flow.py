@@ -1,106 +1,161 @@
-import logging
-import voluptuous as vol
 from homeassistant import config_entries
-from homeassistant.core import callback
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from .const import DOMAIN, CONF_TOKEN, CONF_GARE, CONF_START, CONF_END
-from .api import search_stations
+import voluptuous as vol
+import aiohttp
 
-_LOGGER = logging.getLogger(__name__)
+from .const import DOMAIN, CONF_API_KEY, CONF_FROM, CONF_TO, CONF_TIME_START, CONF_TIME_END
 
-STEP_USER_DATA_SCHEMA = vol.Schema({
-    vol.Required(CONF_TOKEN): str,
-})
 
-STEP_STATION_DATA_SCHEMA = vol.Schema({
-    vol.Required(CONF_GARE): str,
-})
-
-STEP_TIME_DATA_SCHEMA = vol.Schema({
-    vol.Required(CONF_START, default="06:00"): str,
-    vol.Required(CONF_END, default="22:00"): str,
-})
-
-class SNCFConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+class SncfTrainsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
 
     def __init__(self):
-        self.api_token = None
-        self.station = None
-        self.station_id = None
-        self.time_start = "06:00"
-        self.time_end = "22:00"
+        self.api_key = None
+        self.departure_city = None
+        self.departure_station = None
+        self.arrival_city = None
+        self.arrival_station = None
+        self.time_start = "07:00"
+        self.time_end = "10:00"
 
     async def async_step_user(self, user_input=None):
         errors = {}
-        if user_input:
-            # On vérifie simplement la présence du token ici
-            self.api_token = user_input[CONF_TOKEN]
-            # Passe à la sélection de la station
-            return await self.async_step_station()
+
+        if user_input is not None:
+            self.api_key = user_input[CONF_API_KEY]
+            return await self.async_step_departure_city()
+
         return self.async_show_form(
             step_id="user",
-            data_schema=STEP_USER_DATA_SCHEMA,
-            errors=errors,
-        )
-
-    async def async_step_station(self, user_input=None):
-        errors = {}
-        stations_list = []
-        if user_input:
-            query_text = user_input[CONF_GARE].strip()
-            if not query_text:
-                errors["base"] = "empty_query"
-            else:
-                try:
-                    stations_raw = await self.hass.async_add_executor_job(
-                        search_stations, self.api_token, query_text)
-                except Exception as e:
-                    _LOGGER.error(f"Erreur API SNCF recherche gare : {e}")
-                    errors["base"] = "api_error"
-                else:
-                    if not stations_raw:
-                        errors["base"] = "not_found"
-                    else:
-                        # On propose la sélection de la première gare trouvée (pour simplifier ce flow)
-                        station = stations_raw[0]
-                        self.station_id = station["id"]
-                        self.station = station["name"]
-                        return await self.async_step_time()
-        return self.async_show_form(
-            step_id="station",
-            data_schema=STEP_STATION_DATA_SCHEMA,
-            errors=errors,
-            description_placeholders={"example": "riquier, nice, paris, lyon"}
-        )
-
-    async def async_step_time(self, user_input=None):
-        errors = {}
-        if user_input:
-            start = user_input[CONF_START]
-            end = user_input[CONF_END]
-            # Simple valid check : format HH:MM
-            from datetime import datetime
-            try:
-                datetime.strptime(start, "%H:%M")
-                datetime.strptime(end, "%H:%M")
-            except ValueError:
-                errors["base"] = "invalid_time"
-            else:
-                self.time_start = start
-                self.time_end = end
-                # Crée l'entrée d'intégration
-                return self.async_create_entry(
-                    title="SNCF Trains – {}".format(self.station),
-                    data={
-                        CONF_TOKEN: self.api_token,
-                        CONF_GARE: self.station_id,
-                        CONF_START: self.time_start,
-                        CONF_END: self.time_end,
-                    }
-                )
-        return self.async_show_form(
-            step_id="time",
-            data_schema=STEP_TIME_DATA_SCHEMA,
+            data_schema=vol.Schema({
+                vol.Required(CONF_API_KEY): str
+            }),
             errors=errors
         )
+
+    async def async_step_departure_city(self, user_input=None):
+        if user_input is not None:
+            self.departure_city = user_input["departure_city"]
+            stations = await self._fetch_stations(self.departure_city)
+            if not stations:
+                return self.async_show_form(
+                    step_id="departure_city",
+                    data_schema=vol.Schema({
+                        vol.Required("departure_city"): str
+                    }),
+                    errors={"base": "no_stations_found"}
+                )
+            self.departure_options = {station["id"]: station for station in stations}
+            return await self.async_step_departure_station()
+
+        return self.async_show_form(
+            step_id="departure_city",
+            data_schema=vol.Schema({
+                vol.Required("departure_city"): str
+            })
+        )
+
+    async def async_step_departure_station(self, user_input=None):
+        if user_input is not None:
+            self.departure_station = user_input["departure_station"]
+            return await self.async_step_arrival_city()
+
+        options = {
+            station_id: f"{station_data['name']} ({station_id.split(':')[-1]})"
+            for station_id, station_data in self.departure_options.items()
+        }
+
+        return self.async_show_form(
+            step_id="departure_station",
+            data_schema=vol.Schema({
+                vol.Required("departure_station"): vol.In(options)
+            })
+        )
+
+    async def async_step_arrival_city(self, user_input=None):
+        if user_input is not None:
+            self.arrival_city = user_input["arrival_city"]
+            stations = await self._fetch_stations(self.arrival_city)
+            if not stations:
+                return self.async_show_form(
+                    step_id="arrival_city",
+                    data_schema=vol.Schema({
+                        vol.Required("arrival_city"): str
+                    }),
+                    errors={"base": "no_stations_found"}
+                )
+            self.arrival_options = {station["id"]: station for station in stations}
+            return await self.async_step_arrival_station()
+
+        return self.async_show_form(
+            step_id="arrival_city",
+            data_schema=vol.Schema({
+                vol.Required("arrival_city"): str
+            })
+        )
+
+    async def async_step_arrival_station(self, user_input=None):
+        if user_input is not None:
+            self.arrival_station = user_input["arrival_station"]
+            return await self.async_step_time_range()
+
+        options = {
+            station_id: f"{station_data['name']} ({station_id.split(':')[-1]})"
+            for station_id, station_data in self.arrival_options.items()
+        }
+
+        return self.async_show_form(
+            step_id="arrival_station",
+            data_schema=vol.Schema({
+                vol.Required("arrival_station"): vol.In(options)
+            })
+        )
+
+    async def async_step_time_range(self, user_input=None):
+        if user_input is not None:
+            self.time_start = user_input[CONF_TIME_START]
+            self.time_end = user_input[CONF_TIME_END]
+
+            # Crée un titre lisible avec les deux stations (extraction ID simplifiée)
+            dep_name = self.departure_options[self.departure_station]["name"] if self.departure_station in self.departure_options else "Départ"
+            arr_name = self.arrival_options[self.arrival_station]["name"] if self.arrival_station in self.arrival_options else "Arrivée"
+
+            title = f"SNCF: {dep_name} → {arr_name}"
+
+            return self.async_create_entry(
+                title=title,
+                data={
+                    CONF_API_KEY: self.api_key,
+                    CONF_FROM: self.departure_station,
+                    CONF_TO: self.arrival_station,
+                    "departure_name": dep_name,
+                    "arrival_name": arr_name,
+                    CONF_TIME_START: self.time_start,
+                    CONF_TIME_END: self.time_end,
+                }
+            )
+
+        return self.async_show_form(
+            step_id="time_range",
+            data_schema=vol.Schema({
+                vol.Required(CONF_TIME_START, default="07:00"): str,
+                vol.Required(CONF_TIME_END, default="10:00"): str
+            })
+        )
+
+    async def _fetch_stations(self, query):
+        url = f"https://api.sncf.com/v1/coverage/sncf/places?q={query}&type[]=stop_area"
+        headers = {"Authorization": self.api_key}
+
+        async with aiohttp.ClientSession() as session:
+            async with session.get(url, headers=headers) as resp:
+                if resp.status != 200:
+                    return []
+                data = await resp.json()
+                return [
+                    {
+                        "id": place["id"],
+                        "name": place["name"]
+                    }
+                    for place in data.get("places", [])
+                    if place.get("embedded_type") == "stop_area"
+                ]
