@@ -18,6 +18,10 @@ def parse_datetime(dt_str):
     except Exception:
         return None
 
+def format_time(dt_str):
+    dt = parse_datetime(dt_str)
+    return dt.strftime("%d/%m/%Y - %H:%M") if dt else None
+
 async def async_setup_entry(hass: HomeAssistant, entry, async_add_entities):
     api_key = entry.data[CONF_API_KEY]
     departure = entry.data[CONF_FROM]
@@ -60,6 +64,7 @@ class SncfJourneySensor(Entity):
             "delay_minutes": [],
             "has_delay": False,
             "next_delay_minutes": None,
+            "trains_summary": [],
         }
         self._state = None
         self.session = async_get_clientsession(hass)
@@ -94,20 +99,38 @@ class SncfJourneySensor(Entity):
                 journeys = data.get("journeys", [])
                 delays = []
                 next_delay = None
+                trains_summary = []
 
                 for i, j in enumerate(journeys):
-                    base_arr = parse_datetime(j.get("base_arrival_date_time"))
-                    arr = parse_datetime(j.get("arrival_date_time"))
-                    delay = int((arr - base_arr).total_seconds() / 60) if base_arr and arr else 0
+                    section = j.get("sections", [{}])[0]
+                    base_dep = format_time(section.get("base_departure_date_time"))
+                    base_arr = format_time(section.get("base_arrival_date_time"))
+
+                    dep_time = parse_datetime(j.get("departure_date_time"))
+                    arr_time = parse_datetime(j.get("arrival_date_time"))
+                    delay = int((arr_time - parse_datetime(section.get("base_arrival_date_time"))).total_seconds() / 60) if arr_time and section.get("base_arrival_date_time") else 0
                     delays.append(delay)
                     if i == 0:
                         next_delay = delay
+
+                    trains_summary.append({
+                        "departure_time": format_time(j.get("departure_date_time")),
+                        "arrival_time": format_time(j.get("arrival_date_time")),
+                        "base_departure_time": base_dep,
+                        "base_arrival_time": base_arr,
+                        "departure_stop_id": self.departure,
+                        "arrival_stop_id": self.arrival,
+                        "direction": section.get("display_informations", {}).get("direction", ""),
+                        "physical_mode": section.get("display_informations", {}).get("physical_mode", ""),
+                        "commercial_mode": section.get("display_informations", {}).get("commercial_mode", ""),
+                    })
 
                 self._attr_extra_state_attributes["journeys"] = journeys
                 self._attr_extra_state_attributes["next_trains"] = [j.get("departure_date_time") for j in journeys]
                 self._attr_extra_state_attributes["delay_minutes"] = delays
                 self._attr_extra_state_attributes["has_delay"] = any(d > 0 for d in delays)
                 self._attr_extra_state_attributes["next_delay_minutes"] = next_delay
+                self._attr_extra_state_attributes["trains_summary"] = trains_summary
                 self._state = len(journeys)
         except asyncio.TimeoutError:
             _LOGGER.error("Timeout fetching SNCF journeys data")
@@ -122,6 +145,7 @@ class SncfJourneySensor(Entity):
         self._attr_extra_state_attributes["delay_minutes"] = []
         self._attr_extra_state_attributes["has_delay"] = False
         self._attr_extra_state_attributes["next_delay_minutes"] = None
+        self._attr_extra_state_attributes["trains_summary"] = []
         self._state = 0
 
     @property
