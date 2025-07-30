@@ -34,8 +34,8 @@ async def async_setup_entry(hass: HomeAssistant, entry, async_add_entities):
 
     options = entry.options
 
-    update_interval = int(options.get("update_interval", DEFAULT_UPDATE_INTERVAL))
-    outside_interval = int(options.get("outside_interval", DEFAULT_OUTSIDE_INTERVAL))
+    update_interval = DEFAULT_UPDATE_INTERVAL
+    outside_interval = DEFAULT_OUTSIDE_INTERVAL
 
     main_sensor = SncfJourneySensor(
         hass, api_key, departure, arrival,
