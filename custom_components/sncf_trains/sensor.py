@@ -32,8 +32,6 @@ async def async_setup_entry(hass: HomeAssistant, entry, async_add_entities):
     time_start = entry.data.get(CONF_TIME_START, "07:00")
     time_end = entry.data.get(CONF_TIME_END, "10:00")
 
-    options = entry.options
-
     update_interval = DEFAULT_UPDATE_INTERVAL
     outside_interval = DEFAULT_OUTSIDE_INTERVAL
 
