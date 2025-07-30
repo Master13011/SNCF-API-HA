@@ -31,17 +31,34 @@ async def async_setup_entry(hass: HomeAssistant, entry, async_add_entities):
     time_start = entry.data.get(CONF_TIME_START, "07:00")
     time_end = entry.data.get(CONF_TIME_END, "10:00")
 
-    sensor = SncfJourneySensor(hass, api_key, departure, arrival, departure_name, arrival_name, time_start, time_end)
+    options = entry.options
+    update_interval = int(options.get("update_interval", 2))
+    outside_interval = int(options.get("outside_interval", 60))
+
+    sensor = SncfJourneySensor(
+        hass, api_key, departure, arrival,
+        departure_name, arrival_name,
+        time_start, time_end,
+        update_interval, outside_interval
+    )
 
     async def async_update(now=None):
         await sensor.async_update()
 
-    async_track_time_interval(hass, async_update, timedelta(minutes=10))
+    def get_interval():
+        now = datetime.now()
+        h_start, m_start = map(int, time_start.split(":"))
+        dt_start = now.replace(hour=h_start, minute=m_start, second=0, microsecond=0)
+        if now < dt_start - timedelta(hours=2):
+            return timedelta(minutes=outside_interval)
+        return timedelta(minutes=update_interval)
+
+    async_track_time_interval(hass, async_update, get_interval())
     await sensor.async_update()
     async_add_entities([sensor], True)
 
 class SncfJourneySensor(Entity):
-    def __init__(self, hass, api_key, departure, arrival, dep_name, arr_name, start_time, end_time):
+    def __init__(self, hass, api_key, departure, arrival, dep_name, arr_name, start_time, end_time, update_interval, outside_interval):
         self.hass = hass
         self.api_key = api_key
         self.departure = departure
@@ -50,6 +67,8 @@ class SncfJourneySensor(Entity):
         self.arr_name = arr_name
         self.start_time = start_time
         self.end_time = end_time
+        self.update_interval = update_interval
+        self.outside_interval = outside_interval
         self._attr_name = f"SNCF: {self.dep_name} → {self.arr_name}"
         self._attr_icon = "mdi:train"
         self._attr_native_unit_of_measurement = "trajets"
@@ -134,6 +153,9 @@ class SncfJourneySensor(Entity):
         except asyncio.TimeoutError:
             _LOGGER.error("Timeout fetching SNCF journeys data")
             self._clear_data()
+        except Exception as e:
+            _LOGGER.exception("Error fetching SNCF journeys")
+            self._clear_data()
 
     def _clear_data(self):
         self._attr_extra_state_attributes["next_trains"] = []
@@ -142,10 +164,10 @@ class SncfJourneySensor(Entity):
         self._attr_extra_state_attributes["next_delay_minutes"] = None
         self._attr_extra_state_attributes["trains_summary"] = []
         self._state = 0
+
     @property
     def state(self):
         return self._state
-
     @property
     def extra_state_attributes(self):
         return self._attr_extra_state_attributes
