@@ -1,8 +1,14 @@
 {
   "domain": "sncf_trains",
   "name": "SNCF Trains",
-  "version": "1.0.2",
+  "after_dependencies": [], 
+  "codeowners": [
+    "@Master13011"
+  ],
+  "config_flow": true,
+  "dependencies": [],
   "documentation": "https://github.com/Master13011/SNCF-API-HA",
+  "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/Master13011/SNCF-API-HA/issues",
   "loggers": [
     "custom_components.sncf_trains"
@@ -10,11 +16,5 @@
   "requirements": [
     "aiohttp"
   ],
-  "dependencies": [],
-  "codeowners": [
-    "@Master13011"
-  ],
-  "config_flow": true,
-  "iot_class": "cloud_polling",
-  "after_dependencies": []
+  "version": "1.0.2"
 }
