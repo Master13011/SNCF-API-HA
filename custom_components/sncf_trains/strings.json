@@ -18,20 +18,20 @@
       },
       "time_range": {
         "title": "Choisissez la plage horaire"
+      },
+      "options": {
+        "title": "Options",
+        "description": "Définissez les intervalles de mise à jour.",
+        "data": {
+          "update_interval": "Intervalle pendant la plage horaire (minutes)",
+          "outside_interval": "Intervalle en dehors de la plage horaire (minutes)"
+        }
       }
     },
     "error": {
       "no_stations_found": "Aucune gare trouvée pour cette ville.",
       "invalid_api_key": "Clé API invalide. Veuillez vérifier et réessayer.",
       "already_configured": "Ce trajet est déjà configuré."
-    }
-  },
-  "options": {
-    "title": "Options de mise à jour",
-    "description": "Configurez la fréquence de mise à jour des données.",
-    "data": {
-      "update_interval": "Intervalle pendant la plage horaire (minutes)",
-      "outside_interval": "Intervalle en dehors de la plage horaire (minutes)"
     }
   }
 }
