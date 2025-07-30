@@ -5,7 +5,8 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import Entity
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from .const import CONF_API_KEY, CONF_FROM, CONF_TO, CONF_TIME_START, CONF_TIME_END
+from .const import CONF_API_KEY, CONF_FROM, CONF_TO, CONF_TIME_START, CONF_TIME_END, DEFAULT_UPDATE_INTERVAL, DEFAULT_OUTSIDE_INTERVAL
+
 
 _LOGGER = logging.getLogger(__name__)
 API_URL = "https://api.sncf.com/v1/coverage/sncf/journeys"
@@ -32,8 +33,9 @@ async def async_setup_entry(hass: HomeAssistant, entry, async_add_entities):
     time_end = entry.data.get(CONF_TIME_END, "10:00")
 
     options = entry.options
-    update_interval = int(options.get("update_interval", 2))
-    outside_interval = int(options.get("outside_interval", 60))
+
+    update_interval = int(options.get("update_interval", DEFAULT_UPDATE_INTERVAL))
+    outside_interval = int(options.get("outside_interval", DEFAULT_OUTSIDE_INTERVAL))
 
     main_sensor = SncfJourneySensor(
         hass, api_key, departure, arrival,
