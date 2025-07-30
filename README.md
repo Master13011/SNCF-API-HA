@@ -49,17 +49,13 @@ Créer une clé sur [https://www.digital.sncf.com/startup/api](https://www.digit
 
 ---
 
-## ⚙️ Options disponibles
+## ⚙️ Variables
 
-Une fois l'intégration configurée, vous pouvez modifier les options via l'interface :
-
-- `update_interval` : fréquence de mise à jour pendant la plage horaire (par défaut : 2 minutes)
+- `update_interval` : fréquence de mise à jour pendant la plage horaire (2 minutes)
 
 > ℹ️ L'option `update_interval` s'active automatiquement **2 heures avant** le début de la plage horaire définie.
 
-- `outside_interval` : fréquence de mise à jour en dehors de la plage horaire (par défaut : 60 minutes)
-
-Les modifications sont prises en compte immédiatement grâce au rechargement automatique de l'intégration.
+- `outside_interval` : fréquence de mise à jour en dehors de la plage horaire (60 minutes)
 
 ---
 
@@ -88,7 +84,6 @@ Fonctionne avec Home Assistant `2024.5.0+`
 
 Structure de base :
 - `config_flow.py` : configuration UI
-- `options_flow.py` : configuration dynamique des options
 - `sensor.py` : récupération des trajets
 - `translations/fr.json` : support multilingue
 - `manifest.json` : déclaration de l’intégration
