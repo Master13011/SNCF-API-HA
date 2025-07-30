@@ -1,4 +1,4 @@
-# 🚄 Intégration SNCF Trains pour Home Assistant - BETA
+# 🚄 Intégration SNCF Trains pour Home Assistant
 
 ![Home Assistant](https://img.shields.io/badge/Home--Assistant-2024.5+-blue?logo=home-assistant)
 ![Custom Component](https://img.shields.io/badge/Custom%20Component-oui-orange)
