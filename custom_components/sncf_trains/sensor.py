@@ -153,9 +153,6 @@ class SncfJourneySensor(Entity):
         except asyncio.TimeoutError:
             _LOGGER.error("Timeout fetching SNCF journeys data")
             self._clear_data()
-        except Exception as e:
-            _LOGGER.exception("Error fetching SNCF journeys")
-            self._clear_data()
 
     def _clear_data(self):
         self._attr_extra_state_attributes["next_trains"] = []
