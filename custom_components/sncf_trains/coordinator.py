@@ -3,7 +3,7 @@ from datetime import timedelta, datetime
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.core import HomeAssistant
 from .api import fetch_journeys
-from .const import CONF_API_KEY, CONF_FROM, CONF_TO, CONF_TIME_START, CONF_TIME_END
+from .const import CONF_API_KEY, CONF_FROM, CONF_TO, CONF_TIME_START, CONF_TIME_END, DEFAULT_UPDATE_INTERVAL, DEFAULT_OUTSIDE_INTERVAL
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -16,8 +16,10 @@ class SncfDataUpdateCoordinator(DataUpdateCoordinator):
         self.time_start = entry.data.get(CONF_TIME_START, "07:00")
         self.time_end = entry.data.get(CONF_TIME_END, "10:00")
 
-        update_interval = int(entry.options.get("update_interval", 2))
-        outside_interval = int(entry.options.get("outside_interval", 60))
+
+        update_interval = int(entry.options.get("update_interval", DEFAULT_UPDATE_INTERVAL))
+        outside_interval = int(entry.options.get("outside_interval", DEFAULT_OUTSIDE_INTERVAL))
+
 
         super().__init__(
             hass,
