@@ -3,8 +3,8 @@ import asyncio
 from datetime import datetime, timedelta
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import Entity
+from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from homeassistant.helpers.event import async_call_later
 from .const import CONF_API_KEY, CONF_FROM, CONF_TO, CONF_TIME_START, CONF_TIME_END
 
 _LOGGER = logging.getLogger(__name__)
@@ -35,7 +35,6 @@ async def async_setup_entry(hass: HomeAssistant, entry, async_add_entities):
     update_interval = int(options.get("update_interval", 2))
     outside_interval = int(options.get("outside_interval", 60))
 
-    # Capteur principal (regroupe tous les trains)
     main_sensor = SncfJourneySensor(
         hass, api_key, departure, arrival,
         departure_name, arrival_name,
@@ -43,11 +42,28 @@ async def async_setup_entry(hass: HomeAssistant, entry, async_add_entities):
         update_interval, outside_interval
     )
 
-    # Capteurs secondaires pour chaque train individuel (3 max)
     train_sensors = [
         SncfTrainSensor(hass, main_sensor, index)
         for index in range(3)
     ]
+
+    async def async_update(now=None):
+        await main_sensor.async_update()
+        for sensor in train_sensors:
+            sensor.async_update_from_main()
+
+    def get_interval():
+        now = datetime.now()
+        h_start, m_start = map(int, time_start.split(":"))
+        dt_start = now.replace(hour=h_start, minute=m_start, second=0, microsecond=0)
+        if now < dt_start - timedelta(hours=2):
+            return timedelta(minutes=outside_interval)
+        return timedelta(minutes=update_interval)
+
+    async_track_time_interval(hass, async_update, get_interval())
+    await main_sensor.async_update()
+    for sensor in train_sensors:
+        sensor.async_update_from_main()
 
     async_add_entities([main_sensor] + train_sensors, True)
 
@@ -80,8 +96,7 @@ class SncfJourneySensor(Entity):
         }
         self._state = None
         self.session = async_get_clientsession(hass)
-        self._journeys = []  # stocke les données récupérées
-        self._unsub_update = None
+        self._journeys = []
 
     def _build_datetime_param(self):
         now = datetime.now()
@@ -93,7 +108,7 @@ class SncfJourneySensor(Entity):
             dt_start += timedelta(days=1)
         return dt_start.strftime("%Y%m%dT%H%M%S")
 
-    async def async_update(self, now=None):
+    async def async_update(self):
         params = {
             "from": self.departure,
             "to": self.arrival,
@@ -108,11 +123,10 @@ class SncfJourneySensor(Entity):
                 if resp.status != 200:
                     _LOGGER.error(f"SNCF API returned with status {resp.status}")
                     self._clear_data()
-                    self._schedule_next_update()
                     return
                 data = await resp.json()
                 journeys = data.get("journeys", [])
-                self._journeys = journeys  # stocke pour les capteurs secondaires
+                self._journeys = journeys
 
                 delays = []
                 next_delay = None
@@ -143,58 +157,28 @@ class SncfJourneySensor(Entity):
                         "has_delay": delay > 0
                     })
 
-                self._attr_extra_state_attributes["next_trains"] = next_trains
-                self._attr_extra_state_attributes["delay_minutes"] = delays
-                self._attr_extra_state_attributes["has_delay"] = next_delay > 0
-                self._attr_extra_state_attributes["next_delay_minutes"] = next_delay
-                self._attr_extra_state_attributes["trains_summary"] = trains_summary
+                self._attr_extra_state_attributes.update({
+                    "next_trains": next_trains,
+                    "delay_minutes": delays,
+                    "has_delay": next_delay > 0,
+                    "next_delay_minutes": next_delay,
+                    "trains_summary": trains_summary,
+                })
                 self._state = len(journeys)
         except asyncio.TimeoutError:
             _LOGGER.error("Timeout fetching SNCF journeys data")
             self._clear_data()
-        except Exception as ex:
-            _LOGGER.error(f"Error fetching SNCF journeys data: {ex}")
-            self._clear_data()
-
-        # Mise à jour de l'état HA
-        self.async_schedule_update_ha_state()
-
-        # Planifier la prochaine mise à jour
-        self._schedule_next_update()
 
     def _clear_data(self):
-        self._attr_extra_state_attributes["next_trains"] = []
-        self._attr_extra_state_attributes["delay_minutes"] = []
-        self._attr_extra_state_attributes["has_delay"] = False
-        self._attr_extra_state_attributes["next_delay_minutes"] = None
-        self._attr_extra_state_attributes["trains_summary"] = []
+        self._attr_extra_state_attributes.update({
+            "next_trains": [],
+            "delay_minutes": [],
+            "has_delay": False,
+            "next_delay_minutes": None,
+            "trains_summary": [],
+        })
         self._state = 0
         self._journeys = []
-
-    def _schedule_next_update(self):
-        if self._unsub_update:
-            self._unsub_update()
-            self._unsub_update = None
-
-        now = datetime.now()
-        h_start, m_start = map(int, self.start_time.split(":"))
-        dt_start = now.replace(hour=h_start, minute=m_start, second=0, microsecond=0)
-
-        if now < dt_start - timedelta(hours=2):
-            interval = timedelta(minutes=self.outside_interval)
-        else:
-            interval = timedelta(minutes=self.update_interval)
-
-        seconds = interval.total_seconds()
-        self._unsub_update = async_call_later(self.hass, seconds, self._handle_scheduled_update)
-
-    async def _handle_scheduled_update(self, _now):
-        await self.async_update()
-
-    async def async_will_remove_from_hass(self):
-        if self._unsub_update:
-            self._unsub_update()
-            self._unsub_update = None
 
     @property
     def state(self):
@@ -216,50 +200,61 @@ class SncfJourneySensor(Entity):
     def unique_id(self):
         return self._attr_unique_id
 
-
 class SncfTrainSensor(Entity):
-    """Capteur pour un train individuel à l’index donné."""
-
     def __init__(self, hass, main_sensor: SncfJourneySensor, train_index: int):
         self.hass = hass
         self.main_sensor = main_sensor
         self.train_index = train_index
-        self._attr_name = f"SNCF Train {train_index + 1}"
+        self._attr_name = f"SNCF Train #{train_index + 1} ({main_sensor.dep_name} → {main_sensor.arr_name})"
         self._attr_icon = "mdi:train"
-        self._attr_unique_id = f"sncf_train_{train_index}_{main_sensor.departure}_{main_sensor.arrival}"
+        self._attr_unique_id = f"sncf_train_{main_sensor.departure}_{main_sensor.arrival}_{train_index}"
+        self._attr_extra_state_attributes = {}
+        self._state = None
+
+    def async_update_from_main(self):
+        journeys = self.main_sensor._journeys
+        if not journeys or len(journeys) <= self.train_index:
+            self._clear_data()
+            return
+
+        journey = journeys[self.train_index]
+        section = journey.get("sections", [{}])[0]
+
+        base_dep = format_time(section.get("base_departure_date_time"))
+        base_arr = format_time(section.get("base_arrival_date_time"))
+        dep_time = format_time(journey.get("departure_date_time"))
+        arr_time = format_time(journey.get("arrival_date_time"))
+        arr_dt = parse_datetime(journey.get("arrival_date_time"))
+        base_arr_dt = parse_datetime(section.get("base_arrival_date_time"))
+        delay = int((arr_dt - base_arr_dt).total_seconds() / 60) if arr_dt and base_arr_dt else 0
+
+        self._state = dep_time
+
+        self._attr_extra_state_attributes = {
+            "departure_time": dep_time,
+            "arrival_time": arr_time,
+            "base_departure_time": base_dep,
+            "base_arrival_time": base_arr,
+            "delay_minutes": delay,
+            "has_delay": delay > 0,
+            "departure_stop_id": self.main_sensor.departure,
+            "arrival_stop_id": self.main_sensor.arrival,
+            "direction": section.get("display_informations", {}).get("direction", ""),
+            "physical_mode": section.get("display_informations", {}).get("physical_mode", ""),
+            "commercial_mode": section.get("display_informations", {}).get("commercial_mode", ""),
+        }
+
+    def _clear_data(self):
+        self._state = None
         self._attr_extra_state_attributes = {}
 
     @property
     def state(self):
-        journeys = self.main_sensor._journeys
-        if self.train_index < len(journeys):
-            journey = journeys[self.train_index]
-            return format_time(journey.get("departure_date_time"))
-        return None
+        return self._state
 
     @property
     def extra_state_attributes(self):
-        journeys = self.main_sensor._journeys
-        if self.train_index < len(journeys):
-            journey = journeys[self.train_index]
-            section = journey.get("sections", [{}])[0]
-            delay = 0
-            arr_time = parse_datetime(journey.get("arrival_date_time"))
-            base_arr = parse_datetime(section.get("base_arrival_date_time"))
-            if arr_time and base_arr:
-                delay = int((arr_time - base_arr).total_seconds() / 60)
-            return {
-                "departure_station": self.main_sensor.departure,
-                "arrival_station": self.main_sensor.arrival,
-                "direction": section.get("display_informations", {}).get("direction", ""),
-                "physical_mode": section.get("display_informations", {}).get("physical_mode", ""),
-                "commercial_mode": section.get("display_informations", {}).get("commercial_mode", ""),
-                "delay_minutes": delay,
-                "has_delay": delay > 0,
-                "base_departure_time": format_time(section.get("base_departure_date_time")),
-                "base_arrival_time": format_time(section.get("base_arrival_date_time")),
-            }
-        return {}
+        return self._attr_extra_state_attributes
 
     @property
     def name(self):
