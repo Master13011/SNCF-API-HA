@@ -53,7 +53,7 @@ Créer une clé sur [https://www.digital.sncf.com/startup/api](https://www.digit
 
 Une fois l'intégration configurée, vous pouvez modifier les options via l'interface :
 
-- `update_interval` : fréquence de mise à jour pendant la plage horaire (par défaut : 10 minutes)
+- `update_interval` : fréquence de mise à jour pendant la plage horaire (par défaut : 2 minutes)
 
 > ℹ️ L'option `update_interval` s'active automatiquement **2 heures avant** le début de la plage horaire définie.
 
