@@ -48,5 +48,13 @@
     "abort": {
       "already_configured": "Cette configuration existe déjà."
     }
+  },
+  "options": {
+    "title": "Options",
+    "description": "Définissez les intervalles de mise à jour.",
+    "data": {
+      "update_interval": "Intervalle pendant la plage horaire (minutes)",
+      "outside_interval": "Intervalle en dehors de la plage horaire (minutes)"
+    }
   }
 }
