@@ -35,7 +35,6 @@ Une fois redémarré :
    - Clé API SNCF
    - Ville & gare de départ
    - Ville & gare d’arrivée
-   - Tranche horaire souhaitée
 
 Vous pouvez configurer plusieurs trajets différents.
 
@@ -46,9 +45,7 @@ Vous pouvez configurer plusieurs trajets différents.
 Créer une clé sur [https://www.digital.sncf.com/startup/api](https://www.digital.sncf.com/startup/api) :
 
 1. S'inscrire ou se connecter
-2. Aller dans **Mes API > Navitia**
-3. Créer une nouvelle clé
-4. Copier la clé et l'utiliser dans l'intégration
+2. Copier la clé et l'utiliser dans l'intégration
 
 ---
 
@@ -57,6 +54,9 @@ Créer une clé sur [https://www.digital.sncf.com/startup/api](https://www.digit
 Une fois l'intégration configurée, vous pouvez modifier les options via l'interface :
 
 - `update_interval` : fréquence de mise à jour pendant la plage horaire (par défaut : 10 minutes)
+
+> ℹ️ L'option `update_interval` s'active automatiquement **2 heures avant** le début de la plage horaire définie.
+
 - `outside_interval` : fréquence de mise à jour en dehors de la plage horaire (par défaut : 60 minutes)
 
 Les modifications sont prises en compte immédiatement grâce au rechargement automatique de l'intégration.
