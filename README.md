@@ -5,7 +5,8 @@
 ![Licence MIT](https://img.shields.io/badge/Licence-MIT-green)
 
 Intégration personnalisée Home Assistant pour suivre les horaires de trains SNCF entre deux gares, via l'API officielle [SNCF](https://www.digital.sncf.com/startup/api).  
-Configurez facilement les villes et gares de départ / arrivée, ainsi qu’une plage horaire pour filtrer les résultats.
+Configurez facilement les villes et gares de départ / arrivée, ainsi qu’une plage horaire pour filtrer les résultats.  
+Depuis la version 1.1.0, vous pouvez également définir des intervalles de mise à jour personnalisés selon la plage horaire.
 
 ---
 
@@ -13,7 +14,7 @@ Configurez facilement les villes et gares de départ / arrivée, ainsi qu’une 
 
 ### 1. Via HACS (recommandé)
 1. Aller dans **HACS > Intégrations > 3 points > Dépôt personnalisé**
-2. Ajouter le dépôt :  https://github.com/Master13011/SNCF-API-HA
+2. Ajouter le dépôt : `https://github.com/Master13011/SNCF-API-HA`
 3. Type de dépôt : `Intégration`
 4. Rechercher `SNCF Trains` dans HACS, installer puis redémarrer Home Assistant.
 
@@ -31,10 +32,10 @@ Une fois redémarré :
 1. Aller dans **Paramètres > Appareils et services > Ajouter une intégration**
 2. Rechercher `SNCF Trains`
 3. Suivre les étapes :
-- Clé API SNCF
-- Ville & gare de départ
-- Ville & gare d’arrivée
-- Tranche horaire souhaitée
+   - Clé API SNCF
+   - Ville & gare de départ
+   - Ville & gare d’arrivée
+   - Tranche horaire souhaitée
 
 Vous pouvez configurer plusieurs trajets différents.
 
@@ -51,13 +52,24 @@ Créer une clé sur [https://www.digital.sncf.com/startup/api](https://www.digit
 
 ---
 
+## ⚙️ Options disponibles
+
+Une fois l'intégration configurée, vous pouvez modifier les options via l'interface :
+
+- `update_interval` : fréquence de mise à jour pendant la plage horaire (par défaut : 10 minutes)
+- `outside_interval` : fréquence de mise à jour en dehors de la plage horaire (par défaut : 60 minutes)
+
+Les modifications sont prises en compte immédiatement grâce au rechargement automatique de l'intégration.
+
+---
+
 ## 📊 Capteurs créés
 
 - `sensor.sncf_<nom_gare_dep>_to_<nom_gare_arr>` : nombre de trains à venir
 - Attributs :
-- Liste des départs avec heure, retard éventuel, mode (TGV, TER, etc.)
-- Gares de départ et d’arrivée
-- Plage horaire configurée
+  - Liste des départs avec heure, retard éventuel, mode (TGV, TER, etc.)
+  - Gares de départ et d’arrivée
+  - Plage horaire configurée
 
 ---
 
@@ -65,10 +77,8 @@ Créer une clé sur [https://www.digital.sncf.com/startup/api](https://www.digit
 
 <img width="329" height="206" alt="image" src="https://github.com/user-attachments/assets/5488ee4b-fcd5-4e21-93e9-56dfbe47c08c" />
 
-Resultat : 
+Résultat :  
 <img width="508" height="668" alt="image" src="https://github.com/user-attachments/assets/fcfb6b37-3dbf-471e-ab82-69283bb00175" />
-
-
 
 ---
 
@@ -78,6 +88,7 @@ Fonctionne avec Home Assistant `2024.5.0+`
 
 Structure de base :
 - `config_flow.py` : configuration UI
+- `options_flow.py` : configuration dynamique des options
 - `sensor.py` : récupération des trajets
 - `translations/fr.json` : support multilingue
 - `manifest.json` : déclaration de l’intégration
