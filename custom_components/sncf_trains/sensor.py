@@ -35,7 +35,6 @@ async def async_setup_entry(hass: HomeAssistant, entry, async_add_entities):
     update_interval = int(options.get("update_interval", 2))
     outside_interval = int(options.get("outside_interval", 60))
 
-    # Capteur principal (regroupe tous les trains)
     main_sensor = SncfJourneySensor(
         hass, api_key, departure, arrival,
         departure_name, arrival_name,
@@ -43,7 +42,6 @@ async def async_setup_entry(hass: HomeAssistant, entry, async_add_entities):
         update_interval, outside_interval
     )
 
-    # Capteurs secondaires pour chaque train individuel (3 max)
     train_sensors = [
         SncfTrainSensor(hass, main_sensor, index)
         for index in range(3)
@@ -51,7 +49,6 @@ async def async_setup_entry(hass: HomeAssistant, entry, async_add_entities):
 
     async def async_update(now=None):
         await main_sensor.async_update()
-        # On met à jour aussi les capteurs secondaires
         for sensor in train_sensors:
             sensor.async_update_from_main()
 
@@ -65,7 +62,6 @@ async def async_setup_entry(hass: HomeAssistant, entry, async_add_entities):
 
     async_track_time_interval(hass, async_update, get_interval())
     await main_sensor.async_update()
-    # Met à jour les capteurs secondaires la première fois aussi
     for sensor in train_sensors:
         sensor.async_update_from_main()
 
@@ -100,7 +96,7 @@ class SncfJourneySensor(Entity):
         }
         self._state = None
         self.session = async_get_clientsession(hass)
-        self._journeys = []  # stocke les données récupérées
+        self._journeys = []
 
     def _build_datetime_param(self):
         now = datetime.now()
@@ -130,7 +126,7 @@ class SncfJourneySensor(Entity):
                     return
                 data = await resp.json()
                 journeys = data.get("journeys", [])
-                self._journeys = journeys  # stocke pour les capteurs secondaires
+                self._journeys = journeys
 
                 delays = []
                 next_delay = None
@@ -217,7 +213,6 @@ class SncfTrainSensor(Entity):
     def async_update_from_main(self):
         journeys = self.main_sensor._journeys
         if not journeys or len(journeys) <= self.train_index:
-            # Pas assez de trajets
             self._clear_data()
             return
         journey = journeys[self.train_index]
