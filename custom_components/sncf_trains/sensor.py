@@ -5,7 +5,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity import Entity
 from homeassistant.helpers.event import async_track_time_interval
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
-from .const import DOMAIN, CONF_API_KEY, CONF_FROM, CONF_TO, CONF_TIME_START, CONF_TIME_END
+from .const import CONF_API_KEY, CONF_FROM, CONF_TO, CONF_TIME_START, CONF_TIME_END
 
 _LOGGER = logging.getLogger(__name__)
 API_URL = "https://api.sncf.com/v1/coverage/sncf/journeys"
@@ -105,7 +105,6 @@ class SncfJourneySensor(Entity):
                     section = j.get("sections", [{}])[0]
                     base_dep = format_time(section.get("base_departure_date_time"))
                     base_arr = format_time(section.get("base_arrival_date_time"))
-                    dep_time = parse_datetime(j.get("departure_date_time"))
                     arr_time = parse_datetime(j.get("arrival_date_time"))
                     delay = int((arr_time - parse_datetime(section.get("base_arrival_date_time"))).total_seconds() / 60) if arr_time and section.get("base_arrival_date_time") else 0
                     delays.append(delay)
@@ -134,9 +133,6 @@ class SncfJourneySensor(Entity):
                 self._state = len(journeys)
         except asyncio.TimeoutError:
             _LOGGER.error("Timeout fetching SNCF journeys data")
-            self._clear_data()
-        except Exception as e:
-            _LOGGER.exception("Error fetching SNCF journeys")
             self._clear_data()
 
     def _clear_data(self):
