@@ -55,7 +55,6 @@ class SncfJourneySensor(Entity):
         self._attr_native_unit_of_measurement = "trajets"
         self._attr_unique_id = f"sncf_trains_{self.departure}_{self.arrival}"
         self._attr_extra_state_attributes = {
-            "journeys": [],
             "next_trains": [],
             "departure_station": self.departure,
             "arrival_station": self.arrival,
@@ -100,19 +99,19 @@ class SncfJourneySensor(Entity):
                 delays = []
                 next_delay = None
                 trains_summary = []
+                next_trains = []
 
                 for i, j in enumerate(journeys):
                     section = j.get("sections", [{}])[0]
                     base_dep = format_time(section.get("base_departure_date_time"))
                     base_arr = format_time(section.get("base_arrival_date_time"))
-
                     dep_time = parse_datetime(j.get("departure_date_time"))
                     arr_time = parse_datetime(j.get("arrival_date_time"))
                     delay = int((arr_time - parse_datetime(section.get("base_arrival_date_time"))).total_seconds() / 60) if arr_time and section.get("base_arrival_date_time") else 0
                     delays.append(delay)
                     if i == 0:
                         next_delay = delay
-
+                    next_trains.append(format_time(j.get("departure_date_time")))
                     trains_summary.append({
                         "departure_time": format_time(j.get("departure_date_time")),
                         "arrival_time": format_time(j.get("arrival_date_time")),
@@ -123,12 +122,13 @@ class SncfJourneySensor(Entity):
                         "direction": section.get("display_informations", {}).get("direction", ""),
                         "physical_mode": section.get("display_informations", {}).get("physical_mode", ""),
                         "commercial_mode": section.get("display_informations", {}).get("commercial_mode", ""),
+                        "delay_minutes": delay,
+                        "has_delay": delay > 0
                     })
 
-                self._attr_extra_state_attributes["journeys"] = journeys
-                self._attr_extra_state_attributes["next_trains"] = [j.get("departure_date_time") for j in journeys]
+                self._attr_extra_state_attributes["next_trains"] = next_trains
                 self._attr_extra_state_attributes["delay_minutes"] = delays
-                self._attr_extra_state_attributes["has_delay"] = any(d > 0 for d in delays)
+                self._attr_extra_state_attributes["has_delay"] = next_delay > 0
                 self._attr_extra_state_attributes["next_delay_minutes"] = next_delay
                 self._attr_extra_state_attributes["trains_summary"] = trains_summary
                 self._state = len(journeys)
@@ -140,14 +140,12 @@ class SncfJourneySensor(Entity):
             self._clear_data()
 
     def _clear_data(self):
-        self._attr_extra_state_attributes["journeys"] = []
         self._attr_extra_state_attributes["next_trains"] = []
         self._attr_extra_state_attributes["delay_minutes"] = []
         self._attr_extra_state_attributes["has_delay"] = False
         self._attr_extra_state_attributes["next_delay_minutes"] = None
         self._attr_extra_state_attributes["trains_summary"] = []
         self._state = 0
-
     @property
     def state(self):
         return self._state
