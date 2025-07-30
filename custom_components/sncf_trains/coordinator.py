@@ -17,8 +17,8 @@ class SncfDataUpdateCoordinator(DataUpdateCoordinator):
         self.time_end = entry.data.get(CONF_TIME_END, "10:00")
 
 
-        update_interval = int(entry.options.get("update_interval", DEFAULT_UPDATE_INTERVAL))
-        outside_interval = int(entry.options.get("outside_interval", DEFAULT_OUTSIDE_INTERVAL))
+        update_interval = DEFAULT_UPDATE_INTERVAL
+        outside_interval = DEFAULT_OUTSIDE_INTERVAL
 
 
         super().__init__(
