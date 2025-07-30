@@ -1,8 +1,11 @@
+
 DOMAIN = "sncf_trains"
+
 CONF_API_KEY = "api_key"
-CONF_FROM = "from_station"
-CONF_TO = "to_station"
+CONF_FROM = "from"
+CONF_TO = "to"
 CONF_TIME_START = "time_start"
 CONF_TIME_END = "time_end"
+
 
 ATTRIBUTION = "Data provided by api.sncf.com"
