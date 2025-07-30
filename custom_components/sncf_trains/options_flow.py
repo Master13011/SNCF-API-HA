@@ -1,8 +1,6 @@
 from homeassistant import config_entries
 import voluptuous as vol
 
-from .const import DOMAIN
-
 class SncfOptionsFlowHandler(config_entries.OptionsFlow):
     def __init__(self, config_entry):
         self.config_entry = config_entry
