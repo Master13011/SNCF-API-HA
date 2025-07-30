@@ -1,12 +1,23 @@
 from homeassistant import config_entries
 import voluptuous as vol
 import aiohttp
+import base64
 
 from .const import (
-    DOMAIN, CONF_API_KEY, CONF_FROM, CONF_TO,
-    CONF_TIME_START, CONF_TIME_END
+    DOMAIN,
+    CONF_API_KEY,
+    CONF_FROM,
+    CONF_TO,
+    CONF_TIME_START,
+    CONF_TIME_END,
 )
 
+API_BASE = "https://api.sncf.com/v1/coverage/sncf"
+
+def encode_token(api_key: str) -> str:
+    """Encode the API key for Basic Auth."""
+    token_str = f"{api_key}:"
+    return base64.b64encode(token_str.encode()).decode()
 
 class SncfTrainsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
@@ -24,110 +35,84 @@ class SncfTrainsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_user(self, user_input=None):
         errors = {}
-
         if user_input is not None:
             self.api_key = user_input[CONF_API_KEY]
-
-            is_valid = await self._validate_api_key(self.api_key)
-            if is_valid:
-                return await self.async_step_departure_city()
-            else:
+            if not await self._validate_api_key(self.api_key):
                 errors["base"] = "invalid_api_key"
-
+            else:
+                return await self.async_step_departure_city()
         return self.async_show_form(
             step_id="user",
-            data_schema=vol.Schema({
-                vol.Required(CONF_API_KEY): str
-            }),
-            errors=errors
+            data_schema=vol.Schema({vol.Required(CONF_API_KEY): str}),
+            errors=errors,
         )
 
     async def async_step_departure_city(self, user_input=None):
         errors = {}
-
         if user_input is not None:
             self.departure_city = user_input["departure_city"]
             stations = await self._fetch_stations(self.departure_city)
-            if stations:
-                self.departure_options = {station["id"]: station for station in stations}
-                return await self.async_step_departure_station()
+            if not stations:
+                errors["base"] = "no_stations"
             else:
-                errors["base"] = "no_stations_found"
-
+                self.departure_options = {s["id"]: s for s in stations}
+                return await self.async_step_departure_station()
         return self.async_show_form(
             step_id="departure_city",
-            data_schema=vol.Schema({
-                vol.Required("departure_city"): str
-            }),
-            errors=errors
+            data_schema=vol.Schema({vol.Required("departure_city"): str}),
+            errors=errors,
         )
 
     async def async_step_departure_station(self, user_input=None):
         if user_input is not None:
             self.departure_station = user_input["departure_station"]
             return await self.async_step_arrival_city()
-
         options = {
-            station_id: f"{station['name']} ({station_id.split(':')[-1]})"
-            for station_id, station in self.departure_options.items()
+            k: f'{v["name"]} ({k.split(":")[-1]})'
+            for k, v in self.departure_options.items()
         }
-
         return self.async_show_form(
             step_id="departure_station",
-            data_schema=vol.Schema({
-                vol.Required("departure_station"): vol.In(options)
-            })
+            data_schema=vol.Schema({vol.Required("departure_station"): vol.In(options)}),
         )
 
     async def async_step_arrival_city(self, user_input=None):
         errors = {}
-
         if user_input is not None:
             self.arrival_city = user_input["arrival_city"]
             stations = await self._fetch_stations(self.arrival_city)
-            if stations:
-                self.arrival_options = {station["id"]: station for station in stations}
-                return await self.async_step_arrival_station()
+            if not stations:
+                errors["base"] = "no_stations"
             else:
-                errors["base"] = "no_stations_found"
-
+                self.arrival_options = {s["id"]: s for s in stations}
+                return await self.async_step_arrival_station()
         return self.async_show_form(
             step_id="arrival_city",
-            data_schema=vol.Schema({
-                vol.Required("arrival_city"): str
-            }),
-            errors=errors
+            data_schema=vol.Schema({vol.Required("arrival_city"): str}),
+            errors=errors,
         )
 
     async def async_step_arrival_station(self, user_input=None):
         if user_input is not None:
             self.arrival_station = user_input["arrival_station"]
             return await self.async_step_time_range()
-
         options = {
-            station_id: f"{station['name']} ({station_id.split(':')[-1]})"
-            for station_id, station in self.arrival_options.items()
+            k: f'{v["name"]} ({k.split(":")[-1]})'
+            for k, v in self.arrival_options.items()
         }
-
         return self.async_show_form(
             step_id="arrival_station",
-            data_schema=vol.Schema({
-                vol.Required("arrival_station"): vol.In(options)
-            })
+            data_schema=vol.Schema({vol.Required("arrival_station"): vol.In(options)}),
         )
 
     async def async_step_time_range(self, user_input=None):
         if user_input is not None:
             self.time_start = user_input[CONF_TIME_START]
             self.time_end = user_input[CONF_TIME_END]
-
-            dep_name = self.departure_options.get(self.departure_station, {}).get("name", "Départ")
-            arr_name = self.arrival_options.get(self.arrival_station, {}).get("name", "Arrivée")
-
-            title = f"SNCF: {dep_name} → {arr_name}"
-
+            dep_name = self.departure_options.get(self.departure_station, {}).get("name", self.departure_station)
+            arr_name = self.arrival_options.get(self.arrival_station, {}).get("name", self.arrival_station)
             return self.async_create_entry(
-                title=title,
+                title=f"SNCF: {dep_name} → {arr_name}",
                 data={
                     CONF_API_KEY: self.api_key,
                     CONF_FROM: self.departure_station,
@@ -136,43 +121,38 @@ class SncfTrainsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     "arrival_name": arr_name,
                     CONF_TIME_START: self.time_start,
                     CONF_TIME_END: self.time_end,
-                }
+                },
             )
-
         return self.async_show_form(
             step_id="time_range",
             data_schema=vol.Schema({
                 vol.Required(CONF_TIME_START, default=self.time_start): str,
-                vol.Required(CONF_TIME_END, default=self.time_end): str
-            })
+                vol.Required(CONF_TIME_END, default=self.time_end): str,
+            }),
         )
 
     async def _fetch_stations(self, query):
-        url = f"https://api.sncf.com/v1/coverage/sncf/places?q={query}&type[]=stop_area"
-        headers = {"Authorization": self.api_key}
-
+        token = encode_token(self.api_key)
+        url = f"{API_BASE}/places"
+        params = {"q": query, "type[]": "stop_point"}
+        headers = {"Authorization": f"Basic {token}"}
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.get(url, headers=headers) as resp:
+                async with session.get(url, headers=headers, params=params) as resp:
                     if resp.status != 200:
                         return []
                     data = await resp.json()
-                    return [
-                        {"id": place["id"], "name": place["name"]}
-                        for place in data.get("places", [])
-                        if place.get("embedded_type") == "stop_area"
-                    ]
-        except aiohttp.ClientError:
+                    return data.get("places", [])
+        except Exception:
             return []
 
-    async def _validate_api_key(self, api_key: str) -> bool:
-        """Teste la validité de la clé API avec une requête simple."""
-        url = "https://api.sncf.com/v1/coverage/sncf/places?q=Paris&type[]=stop_area"
-        headers = {"Authorization": api_key}
-
+    async def _validate_api_key(self, api_key):
+        token = encode_token(api_key)
+        url = f"{API_BASE}/places?q=paris&type[]=stop_point"
+        headers = {"Authorization": f"Basic {token}"}
         try:
             async with aiohttp.ClientSession() as session:
                 async with session.get(url, headers=headers) as resp:
                     return resp.status == 200
-        except aiohttp.ClientError:
+        except Exception:
             return False
