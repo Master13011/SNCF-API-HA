@@ -156,3 +156,10 @@ class SncfTrainsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                     return resp.status == 200
         except Exception:
             return False
+
+
+    @staticmethod
+    def async_get_options_flow(config_entry):
+        from .options_flow import SncfOptionsFlowHandler
+        return SncfOptionsFlowHandler(config_entry)
+
