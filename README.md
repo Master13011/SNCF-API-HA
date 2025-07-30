@@ -5,8 +5,8 @@
 ![Licence MIT](https://img.shields.io/badge/Licence-MIT-green)
 
 Intégration personnalisée Home Assistant pour suivre les horaires de trains SNCF entre deux gares, via l'API officielle [SNCF](https://www.digital.sncf.com/startup/api).  
+
 Configurez facilement les villes et gares de départ / arrivée, ainsi qu’une plage horaire pour filtrer les résultats.  
-Depuis la version 1.1.0, vous pouvez également définir des intervalles de mise à jour personnalisés selon la plage horaire.
 
 ---
 
