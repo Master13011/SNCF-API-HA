@@ -1,6 +1,8 @@
 from homeassistant import config_entries
 import voluptuous as vol
 
+from .const import DEFAULT_UPDATE_INTERVAL, DEFAULT_OUTSIDE_INTERVAL
+
 class SncfOptionsFlowHandler(config_entries.OptionsFlow):
     def __init__(self, config_entry):
         self.config_entry = config_entry
@@ -16,7 +18,8 @@ class SncfOptionsFlowHandler(config_entries.OptionsFlow):
         return self.async_show_form(
             step_id="init",
             data_schema=vol.Schema({
-                vol.Required("update_interval", default=self.config_entry.options.get("update_interval", 2)): int,
-                vol.Required("outside_interval", default=self.config_entry.options.get("outside_interval", 60)): int,
+                vol.Required("update_interval", default=self.config_entry.options.get("update_interval", DEFAULT_UPDATE_INTERVAL))
+                vol.Required("outside_interval", default=self.config_entry.options.get("outside_interval", DEFAULT_OUTSIDE_INTERVAL))
+
             })
         )
