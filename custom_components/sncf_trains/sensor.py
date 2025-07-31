@@ -79,7 +79,7 @@ async def async_setup_entry(hass: HomeAssistant, entry, async_add_entities):
     # 3) Démarrer la planification des updates dynamiques
     await schedule_next_update()
 
-    async def on_unload(_):
+    async def on_unload(_=None):
         if unsub_handle["unsub"]:
             unsub_handle["unsub"]()
             unsub_handle["unsub"] = None
