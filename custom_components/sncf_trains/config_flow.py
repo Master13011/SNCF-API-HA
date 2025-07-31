@@ -1,8 +1,6 @@
 from homeassistant import config_entries
 import voluptuous as vol
-import aiohttp
-import base64
-
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from .const import (
     DOMAIN,
     CONF_API_KEY,
@@ -11,19 +9,14 @@ from .const import (
     CONF_TIME_START,
     CONF_TIME_END,
 )
-
-API_BASE = "https://api.sncf.com/v1/coverage/sncf"
-
-def encode_token(api_key: str) -> str:
-    """Encode the API key for Basic Auth."""
-    token_str = f"{api_key}:"
-    return base64.b64encode(token_str.encode()).decode()
+from .api import SncfApiClient
 
 class SncfTrainsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
 
     def __init__(self):
         self.api_key = None
+        self.api_client = None
         self.departure_city = None
         self.departure_station = None
         self.arrival_city = None
@@ -37,7 +30,9 @@ class SncfTrainsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors = {}
         if user_input is not None:
             self.api_key = user_input[CONF_API_KEY]
-            if not await self._validate_api_key(self.api_key):
+            session = async_get_clientsession(self.hass)
+            self.api_client = SncfApiClient(session, self.api_key)
+            if not await self._validate_api_key():
                 errors["base"] = "invalid_api_key"
             else:
                 return await self.async_step_departure_city()
@@ -51,7 +46,7 @@ class SncfTrainsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors = {}
         if user_input is not None:
             self.departure_city = user_input["departure_city"]
-            stations = await self._fetch_stations(self.departure_city)
+            stations = await self.api_client.search_stations(self.departure_city)
             if not stations:
                 errors["base"] = "no_stations"
             else:
@@ -80,7 +75,7 @@ class SncfTrainsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         errors = {}
         if user_input is not None:
             self.arrival_city = user_input["arrival_city"]
-            stations = await self._fetch_stations(self.arrival_city)
+            stations = await self.api_client.search_stations(self.arrival_city)
             if not stations:
                 errors["base"] = "no_stations"
             else:
@@ -131,31 +126,9 @@ class SncfTrainsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             }),
         )
 
-    async def _fetch_stations(self, query):
-        token = encode_token(self.api_key)
-        url = f"{API_BASE}/places"
-        params = {"q": query, "type[]": "stop_point"}
-        headers = {"Authorization": f"Basic {token}"}
+    async def _validate_api_key(self):
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url, headers=headers, params=params) as resp:
-                    if resp.status != 200:
-                        return []
-                    data = await resp.json()
-                    return data.get("places", [])
-        except Exception:
-            return []
-
-    async def _validate_api_key(self, api_key):
-        token = encode_token(api_key)
-        url = f"{API_BASE}/places?q=paris&type[]=stop_point"
-        headers = {"Authorization": f"Basic {token}"}
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(url, headers=headers) as resp:
-                    return resp.status == 200
+            results = await self.api_client.search_stations("paris")
+            return bool(results)
         except Exception:
             return False
-
-
-
