@@ -12,6 +12,7 @@ from .const import (
     CONF_TIME_END,
     DEFAULT_UPDATE_INTERVAL,
     DEFAULT_OUTSIDE_INTERVAL,
+    DEFAULT_TRAIN_COUNT,
 )
 from .coordinator import SncfUpdateCoordinator
 
@@ -55,7 +56,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
         update_interval,
         outside_interval,
     )
-    train_sensors = [SncfTrainSensor(main_sensor, index) for index in range(3)]
+    train_sensors = [SncfTrainSensor(main_sensor, index) for index in range(DEFAULT_TRAIN_COUNT)]
 
     # Lier les capteurs enfants pour mise à jour automatique
     for s in train_sensors:

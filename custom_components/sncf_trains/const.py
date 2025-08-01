@@ -11,4 +11,6 @@ PLATFORMS = ["sensor"]
 DEFAULT_UPDATE_INTERVAL = 2  # minutes
 DEFAULT_OUTSIDE_INTERVAL = 60  # minutes
 
+DEFAULT_TRAIN_COUNT = 3
+
 ATTRIBUTION = "Data provided by api.sncf.com"
