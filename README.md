@@ -74,7 +74,13 @@ Créer une clé sur [https://www.digital.sncf.com/startup/api](https://www.digit
 <img width="329" height="206" alt="image" src="https://github.com/user-attachments/assets/5488ee4b-fcd5-4e21-93e9-56dfbe47c08c" />
 
 Résultat :  
-<img width="508" height="668" alt="image" src="https://github.com/user-attachments/assets/fcfb6b37-3dbf-471e-ab82-69283bb00175" />
+<img width="620" height="238" alt="image" src="https://github.com/user-attachments/assets/bdf36aae-a588-4cb5-a356-a06d395e265b" />
+
+<img width="516" height="819" alt="image" src="https://github.com/user-attachments/assets/df2ce855-b365-40a0-b76b-f56b4ffcecf6" />
+
+Dashboard :
+
+<img width="315" height="360" alt="image" src="https://github.com/user-attachments/assets/033fd0ce-ab61-4e54-83de-4bdb85d8aa58" />
 
 ---
 
