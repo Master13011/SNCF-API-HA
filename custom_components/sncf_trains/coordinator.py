@@ -2,7 +2,7 @@ import logging
 from datetime import timedelta
 from homeassistant.util import dt as dt_util
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
-from .const import DEFAULT_UPDATE_INTERVAL, DEFAULT_TRAIN_COUNT
+from .const import DEFAULT_UPDATE_INTERVAL
 from datetime import timedelta as dt_timedelta
 
 _LOGGER = logging.getLogger(__name__)
@@ -47,3 +47,4 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
         if journeys is None:
             raise UpdateFailed("Aucune donnée reçue de l'API SNCF")
         return journeys
+
