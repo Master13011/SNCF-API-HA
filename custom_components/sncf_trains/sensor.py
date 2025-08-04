@@ -4,6 +4,9 @@ from homeassistant.util import dt as dt_util
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.const import STATE_UNAVAILABLE
 
+from homeassistant.helpers.entity_registry import async_get as async_get_entity_registry
+
+
 from .const import (
     DOMAIN,
     CONF_FROM,
@@ -43,8 +46,11 @@ async def async_setup_entry(hass, entry, async_add_entities):
     arrival_name = entry.data.get("arrival_name", arrival)
     time_start = entry.data.get(CONF_TIME_START, "07:00")
     time_end = entry.data.get(CONF_TIME_END, "10:00")
-    update_interval = DEFAULT_UPDATE_INTERVAL
-    outside_interval = DEFAULT_OUTSIDE_INTERVAL
+
+    update_interval = entry.options.get("update_interval", DEFAULT_UPDATE_INTERVAL)
+    outside_interval = entry.options.get("outside_interval", DEFAULT_OUTSIDE_INTERVAL)
+    train_count = entry.options.get("train_count", DEFAULT_TRAIN_COUNT)
+
 
     main_sensor = SncfJourneySensor(
         coordinator,
@@ -57,7 +63,23 @@ async def async_setup_entry(hass, entry, async_add_entities):
         update_interval,
         outside_interval,
     )
-    train_sensors = [SncfTrainSensor(main_sensor, index) for index in range(DEFAULT_TRAIN_COUNT)]
+    train_sensors = [SncfTrainSensor(main_sensor, index) for index in range(train_count)]
+
+    # Supprimer les capteurs obsolètes
+    entity_registry = async_get_entity_registry(hass)
+    prefix = f"sncf_train_{departure}_{arrival}_"
+    
+    for entity in list(entity_registry.entities.values()):
+        if entity.domain == "sensor" and entity.unique_id.startswith(prefix):
+            try:
+                index = int(entity.unique_id.split("_")[-1])
+                if index >= train_count:
+                    _LOGGER.info(f"Suppression du capteur obsolète du registre : {entity.entity_id}")
+                    entity_registry.async_remove(entity.entity_id)
+            except ValueError:
+                continue
+
+
 
     # Lier les capteurs enfants pour mise à jour automatique
     for s in train_sensors:
@@ -88,12 +110,12 @@ class SncfJourneySensor(SensorEntity):
         self.end_time = end_time
         self.update_interval = update_interval
         self.outside_interval = outside_interval
-        self._attr_attribution = ATTRIBUTION
 
         self._attr_name = f"SNCF: {self.dep_name} → {self.arr_name}"
         self._attr_icon = "mdi:train"
         self._attr_native_unit_of_measurement = "trajets"
         self._attr_unique_id = f"sncf_trains_{self.departure}_{self.arrival}"
+        self._attr_attribution = ATTRIBUTION
 
         self._journeys = []
         self._state = None
