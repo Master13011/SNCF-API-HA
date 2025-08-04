@@ -1,11 +1,9 @@
 import logging
-from datetime import datetime, timedelta
+from datetime import timedelta, datetime
 from homeassistant.util import dt as dt_util
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.const import STATE_UNAVAILABLE
-
 from homeassistant.helpers.entity_registry import async_get as async_get_entity_registry
-
 
 from .const import (
     DOMAIN,
@@ -17,6 +15,8 @@ from .const import (
     DEFAULT_OUTSIDE_INTERVAL,
     DEFAULT_TRAIN_COUNT,
     ATTRIBUTION,
+    DEFAULT_TIME_START,
+    DEFAULT_TIME_END,
 )
 from .coordinator import SncfUpdateCoordinator
 
@@ -27,14 +27,14 @@ def parse_datetime(dt_str):
         return None
     try:
         naive = datetime.strptime(dt_str, "%Y%m%dT%H%M%S")
-        return dt_util.as_local(naive)  # Rend le datetime "aware" dans le fuseau local
+        return dt_util.as_local(naive)
     except Exception:
         return None
 
 def format_time(dt_str):
     dt = parse_datetime(dt_str)
     if not dt:
-        return "N/A"  # Valeur fallback
+        return "N/A"
     return dt.strftime("%d/%m/%Y - %H:%M")
 
 async def async_setup_entry(hass, entry, async_add_entities):
@@ -44,14 +44,36 @@ async def async_setup_entry(hass, entry, async_add_entities):
     arrival = entry.data.get(CONF_TO)
     departure_name = entry.data.get("departure_name", departure)
     arrival_name = entry.data.get("arrival_name", arrival)
-    time_start = entry.data.get(CONF_TIME_START, "07:00")
-    time_end = entry.data.get(CONF_TIME_END, "10:00")
 
+    # PRIORITÉ : options > data > défauts
+    time_start = entry.options.get(CONF_TIME_START, entry.data.get(CONF_TIME_START, DEFAULT_TIME_START))
+    time_end = entry.options.get(CONF_TIME_END, entry.data.get(CONF_TIME_END, DEFAULT_TIME_END))
     update_interval = entry.options.get("update_interval", DEFAULT_UPDATE_INTERVAL)
     outside_interval = entry.options.get("outside_interval", DEFAULT_OUTSIDE_INTERVAL)
     train_count = entry.options.get("train_count", DEFAULT_TRAIN_COUNT)
 
+    # Filtrer les trajets DIRECTS (sections == 1)
+    direct_journeys = [j for j in (coordinator.data or []) if len(j.get("sections", [])) == 1]
 
+    if not direct_journeys:
+        # Aucun trajet direct trouvé : crée seulement le capteur principal avec message
+        main_sensor = SncfJourneySensor(
+            coordinator,
+            departure,
+            arrival,
+            departure_name,
+            arrival_name,
+            time_start,
+            time_end,
+            update_interval,
+            outside_interval,
+        )
+        main_sensor._journeys = []
+        main_sensor._state = "Aucun trajet direct trouvé"
+        async_add_entities([main_sensor], True)
+        return
+
+    display_count = min(len(direct_journeys), train_count)
     main_sensor = SncfJourneySensor(
         coordinator,
         departure,
@@ -63,30 +85,28 @@ async def async_setup_entry(hass, entry, async_add_entities):
         update_interval,
         outside_interval,
     )
-    train_sensors = [SncfTrainSensor(main_sensor, index) for index in range(train_count)]
+    main_sensor._journeys = direct_journeys
 
-    # Supprimer les capteurs obsolètes
+    train_sensors = [SncfTrainSensor(main_sensor, index) for index in range(display_count)]
+
+    # Supprimer les capteurs obsolètes au-delà de display_count
     entity_registry = async_get_entity_registry(hass)
     prefix = f"sncf_train_{departure}_{arrival}_"
-    
     for entity in list(entity_registry.entities.values()):
         if entity.domain == "sensor" and entity.unique_id.startswith(prefix):
             try:
                 index = int(entity.unique_id.split("_")[-1])
-                if index >= train_count:
-                    _LOGGER.info(f"Suppression du capteur obsolète du registre : {entity.entity_id}")
+                if index >= display_count:
+                    _LOGGER.info(f"Suppression du capteur obsolète : {entity.entity_id}")
                     entity_registry.async_remove(entity.entity_id)
             except ValueError:
                 continue
 
-
-
-    # Lier les capteurs enfants pour mise à jour automatique
+    # Lier capteurs enfants au capteur principal
     for s in train_sensors:
         main_sensor._child_sensors.append(s)
 
     async_add_entities([main_sensor] + train_sensors, True)
-
 
 class SncfJourneySensor(SensorEntity):
     def __init__(
@@ -122,8 +142,6 @@ class SncfJourneySensor(SensorEntity):
         self._attr_extra_state_attributes = {}
 
         self._next_update_time = datetime.min
-
-        # Liste des capteurs enfants à mettre à jour quand on update
         self._child_sensors = []
 
     @property
@@ -135,6 +153,7 @@ class SncfJourneySensor(SensorEntity):
         h_start, m_start = map(int, self.start_time.split(":"))
         dt_start = now.replace(hour=h_start, minute=m_start, second=0, microsecond=0)
         h_end, m_end = map(int, self.end_time.split(":"))
+        dt_end = now.replace(hour=h_end, minute=m_end, second=0, microsecond=0)
         if now < dt_start - timedelta(hours=2):
             return timedelta(minutes=self.outside_interval)
         return timedelta(minutes=self.update_interval)
@@ -148,29 +167,34 @@ class SncfJourneySensor(SensorEntity):
         if not self.coordinator.last_update_success:
             self._state = STATE_UNAVAILABLE
             self._clear_data()
-            if self.entity_id is not None:
+            if self.entity_id:
                 self.async_write_ha_state()
             return
 
         journeys = self.coordinator.data or []
-        self._journeys = journeys
+        direct_journeys = [j for j in journeys if len(j.get("sections", [])) == 1]
+        if not direct_journeys:
+            self._state = "Aucun trajet direct trouvé"
+            self._attr_extra_state_attributes = {}
+            if self.entity_id:
+                self.async_write_ha_state()
+            return
+
+        self._journeys = direct_journeys
 
         delays = []
         next_delay = None
         trains_summary = []
         next_trains = []
 
-        for i, j in enumerate(journeys):
+        for i, j in enumerate(direct_journeys):
             section = j.get("sections", [{}])[0]
             base_dep = format_time(section.get("base_departure_date_time"))
             base_arr = format_time(section.get("base_arrival_date_time"))
             arr_time = parse_datetime(j.get("arrival_date_time"))
             base_arrival = parse_datetime(section.get("base_arrival_date_time"))
 
-            if arr_time and base_arrival:
-                delay = int((arr_time - base_arrival).total_seconds() / 60)
-            else:
-                delay = 0
+            delay = int((arr_time - base_arrival).total_seconds() / 60) if arr_time and base_arrival else 0
             delays.append(delay)
             if i == 0:
                 next_delay = delay
@@ -199,13 +223,13 @@ class SncfJourneySensor(SensorEntity):
             "next_delay_minutes": next_delay,
             "trains_summary": trains_summary,
         }
-        self._state = len(journeys)
+        self._state = len(direct_journeys)
 
-        # Mettre à jour les capteurs enfants
+        # Mise à jour capteurs enfants
         for child in self._child_sensors:
             child.async_update_from_main()
 
-        if self.entity_id is not None:
+        if self.entity_id:
             self.async_write_ha_state()
 
     def _clear_data(self):
@@ -245,11 +269,13 @@ class SncfTrainSensor(SensorEntity):
         journeys = self.main_sensor._journeys
         if not journeys or len(journeys) <= self.train_index:
             self._clear_data()
-            if self.entity_id is not None:
+            if self.entity_id:
                 self.async_write_ha_state()
             return
 
         journey = journeys[self.train_index]
+        if len(journey.get("sections", [])) != 1:
+            return
         section = journey.get("sections", [{}])[0]
 
         base_dep = format_time(section.get("base_departure_date_time"))
@@ -275,13 +301,13 @@ class SncfTrainSensor(SensorEntity):
             "physical_mode": section.get("display_informations", {}).get("physical_mode", ""),
             "commercial_mode": section.get("display_informations", {}).get("commercial_mode", ""),
         }
-        if self.entity_id is not None:
+        if self.entity_id:
             self.async_write_ha_state()
 
     def _clear_data(self):
         self._state = "N/A"
         self._attr_extra_state_attributes = {}
-        if self.entity_id is not None:
+        if self.entity_id:
             self.async_write_ha_state()
 
     @property

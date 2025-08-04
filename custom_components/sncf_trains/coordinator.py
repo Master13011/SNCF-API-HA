@@ -2,7 +2,7 @@ import logging
 from datetime import timedelta
 from homeassistant.util import dt as dt_util
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
-from .const import DEFAULT_UPDATE_INTERVAL
+from .const import DEFAULT_UPDATE_INTERVAL, DEFAULT_TRAIN_COUNT
 from datetime import timedelta as dt_timedelta
 
 _LOGGER = logging.getLogger(__name__)

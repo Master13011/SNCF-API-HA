@@ -8,6 +8,9 @@ from .const import (
     CONF_TO,
     CONF_TIME_START,
     CONF_TIME_END,
+    DEFAULT_TIME_START,
+    DEFAULT_TIME_END,
+
 )
 from .api import SncfApiClient
 
@@ -21,8 +24,8 @@ class SncfTrainsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self.departure_station = None
         self.arrival_city = None
         self.arrival_station = None
-        self.time_start = "07:00"
-        self.time_end = "10:00"
+        self.time_start = DEFAULT_TIME_START
+        self.time_end = DEFAULT_TIME_END
         self.departure_options = {}
         self.arrival_options = {}
 
@@ -102,8 +105,8 @@ class SncfTrainsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
     async def async_step_time_range(self, user_input=None):
         if user_input is not None:
-            self.time_start = user_input[CONF_TIME_START]
-            self.time_end = user_input[CONF_TIME_END]
+            self.time_start = user_input.get(CONF_TIME_START, DEFAULT_TIME_START)
+            self.time_end = user_input.get(CONF_TIME_END, DEFAULT_TIME_END)
             dep_name = self.departure_options.get(self.departure_station, {}).get("name", self.departure_station)
             arr_name = self.arrival_options.get(self.arrival_station, {}).get("name", self.arrival_station)
             return self.async_create_entry(
@@ -121,8 +124,8 @@ class SncfTrainsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return self.async_show_form(
             step_id="time_range",
             data_schema=vol.Schema({
-                vol.Required(CONF_TIME_START, default=self.time_start): str,
-                vol.Required(CONF_TIME_END, default=self.time_end): str,
+                vol.Required(CONF_TIME_START, default=self.time_start or DEFAULT_TIME_START): str,
+                vol.Required(CONF_TIME_END, default=self.time_end or DEFAULT_TIME_END): str,
             }),
         )
 
