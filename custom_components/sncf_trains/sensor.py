@@ -13,6 +13,7 @@ from .const import (
     DEFAULT_UPDATE_INTERVAL,
     DEFAULT_OUTSIDE_INTERVAL,
     DEFAULT_TRAIN_COUNT,
+    ATTRIBUTION,
 )
 from .coordinator import SncfUpdateCoordinator
 
@@ -87,6 +88,7 @@ class SncfJourneySensor(SensorEntity):
         self.end_time = end_time
         self.update_interval = update_interval
         self.outside_interval = outside_interval
+        self._attr_attribution = ATTRIBUTION
 
         self._attr_name = f"SNCF: {self.dep_name} → {self.arr_name}"
         self._attr_icon = "mdi:train"
@@ -211,6 +213,7 @@ class SncfTrainSensor(SensorEntity):
 
         self._attr_extra_state_attributes = {}
         self._state = None
+        self._attr_attribution = ATTRIBUTION
 
     @property
     def state(self):
