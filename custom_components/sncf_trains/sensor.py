@@ -153,7 +153,6 @@ class SncfJourneySensor(SensorEntity):
         h_start, m_start = map(int, self.start_time.split(":"))
         dt_start = now.replace(hour=h_start, minute=m_start, second=0, microsecond=0)
         h_end, m_end = map(int, self.end_time.split(":"))
-        dt_end = now.replace(hour=h_end, minute=m_end, second=0, microsecond=0)
         if now < dt_start - timedelta(hours=2):
             return timedelta(minutes=self.outside_interval)
         return timedelta(minutes=self.update_interval)
