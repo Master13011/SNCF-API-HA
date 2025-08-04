@@ -6,7 +6,7 @@
 
 Intégration personnalisée Home Assistant pour suivre les horaires de trains SNCF entre deux gares, via l'API officielle [SNCF](https://www.digital.sncf.com/startup/api).  
 
-Configurez facilement les villes et gares de départ / arrivée, ainsi qu’une plage horaire pour filtrer les résultats.  
+Configurez facilement les villes et gares de départ / arrivée, ainsi qu’une plage horaire pour filtrer les résultats.
 
 ---
 
@@ -35,8 +35,26 @@ Une fois redémarré :
    - Clé API SNCF
    - Ville & gare de départ
    - Ville & gare d’arrivée
+   - Plage horaire souhaitée
 
 Vous pouvez configurer plusieurs trajets différents.
+
+---
+
+## 🧩 Options dynamiques (`options_flow`)
+
+Une fois l'intégration ajoutée, vous pouvez ajuster dynamiquement plusieurs paramètres via l'interface sans devoir tout reconfigurer :
+
+### Modifier les options :
+1. Aller dans **Paramètres > Appareils et services**
+2. Trouver votre intégration `SNCF Trains` > cliquez sur **Configurer**
+3. Paramètres disponibles :
+   - **Fréquence de mise à jour pendant la plage horaire**
+   - **Fréquence de mise à jour en dehors de la plage horaire**
+   - **Nombre de trains à afficher**
+   - **Plage horaire personnalisée (début / fin)**
+
+Les modifications sont prises en compte automatiquement, sans redémarrage nécessaire.
 
 ---
 
@@ -51,11 +69,13 @@ Créer une clé sur [https://www.digital.sncf.com/startup/api](https://www.digit
 
 ## ⚙️ Variables
 
-- `update_interval` : fréquence de mise à jour pendant la plage horaire (2 minutes)
+- `update_interval` : fréquence de mise à jour pendant la plage horaire (2 minutes par défaut)
 
 > ℹ️ L'option `update_interval` s'active automatiquement **2 heures avant** le début de la plage horaire définie.
 
-- `outside_interval` : fréquence de mise à jour en dehors de la plage horaire (60 minutes)
+- `outside_interval` : fréquence de mise à jour en dehors de la plage horaire (60 minutes par défaut)
+- `train_count` : nombre maximum de départs à afficher
+- `time_start` / `time_end` : plage horaire filtrant les départs à surveiller (ex. : 06:00 → 09:00)
 
 ---
 
@@ -66,17 +86,19 @@ Créer une clé sur [https://www.digital.sncf.com/startup/api](https://www.digit
   - Liste des départs avec heure, retard éventuel, mode (TGV, TER, etc.)
   - Gares de départ et d’arrivée
   - Plage horaire configurée
+  - Délai avant prochain départ
 
 ---
 
 ## 📸 Capture d'écran
 
-<img width="329" height="206" alt="image" src="https://github.com/user-attachments/assets/5488ee4b-fcd5-4e21-93e9-56dfbe47c08c" />
+<img width="354" height="453" alt="image" src="https://github.com/user-attachments/assets/15a88da4-fad0-46ca-8031-9864d3f48ed3" />
+
 
 Résultat :  
-<img width="620" height="238" alt="image" src="https://github.com/user-attachments/assets/bdf36aae-a588-4cb5-a356-a06d395e265b" />
 
-<img width="516" height="819" alt="image" src="https://github.com/user-attachments/assets/df2ce855-b365-40a0-b76b-f56b4ffcecf6" />
+<img width="608" height="262" alt="image" src="https://github.com/user-attachments/assets/39206e2a-8f44-4393-92fe-4196427b9bf9" />
+
 
 Dashboard :
 
@@ -90,7 +112,9 @@ Fonctionne avec Home Assistant `2024.5.0+`
 
 Structure de base :
 - `config_flow.py` : configuration UI
+- `options_flow.py` : formulaire dynamique d'options utilisateur
 - `sensor.py` : récupération des trajets
+- `coordinator.py` : logique de rafraîchissement conditionnel
 - `translations/fr.json` : support multilingue
 - `manifest.json` : déclaration de l’intégration
 
