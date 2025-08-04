@@ -47,3 +47,4 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
         if journeys is None:
             raise UpdateFailed("Aucune donnée reçue de l'API SNCF")
         return journeys
+

@@ -1,5 +1,4 @@
 import logging
-
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
@@ -14,22 +13,33 @@ from .const import (
     CONF_TIME_START,
     CONF_TIME_END,
     DEFAULT_UPDATE_INTERVAL,
+    DEFAULT_TIME_START,
+    DEFAULT_TIME_END,
 )
 from .coordinator import SncfUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    # Initialiser entry.options avec les valeurs de entry.data si options vides
+    if not entry.options:
+        hass.config_entries.async_update_entry(entry, options={
+            CONF_TIME_START: entry.data.get(CONF_TIME_START, DEFAULT_TIME_START),
+            CONF_TIME_END: entry.data.get(CONF_TIME_END, DEFAULT_TIME_END),
+            "update_interval": entry.data.get("update_interval", DEFAULT_UPDATE_INTERVAL),
+        })
+
     api_key = entry.data[CONF_API_KEY]
     departure = entry.data[CONF_FROM]
     arrival = entry.data[CONF_TO]
-    time_start = entry.data.get(CONF_TIME_START, "07:00")
-    time_end = entry.data.get(CONF_TIME_END, "10:00")
+
+    time_start = entry.options.get(CONF_TIME_START, entry.data.get(CONF_TIME_START, DEFAULT_TIME_START))
+    time_end = entry.options.get(CONF_TIME_END, entry.data.get(CONF_TIME_END, DEFAULT_TIME_END))
+    update_interval = entry.options.get("update_interval", entry.data.get("update_interval", DEFAULT_UPDATE_INTERVAL))
 
     session = async_get_clientsession(hass)
     api_client = SncfApiClient(session, api_key)
 
-    # Valider la connexion API
     try:
         departures = await api_client.fetch_departures(stop_id=departure, max_results=1)
         if departures is None:
@@ -38,7 +48,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         _LOGGER.error("Error connecting to SNCF API: %s", err)
         raise ConfigEntryNotReady from err
 
-    # Créer le coordinator, on envoie l'intervalle de mise à jour
     coordinator = SncfUpdateCoordinator(
         hass,
         api_client,
@@ -46,7 +55,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         arrival,
         time_start,
         time_end,
-        update_interval=DEFAULT_UPDATE_INTERVAL
+        update_interval=update_interval
     )
     await coordinator.async_refresh()
     if not coordinator.last_update_success:
@@ -54,6 +63,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = coordinator
+
+    entry.async_on_unload(entry.add_update_listener(async_reload_entry))
 
     await hass.config_entries.async_forward_entry_setups(entry, ["sensor"])
 
@@ -64,3 +75,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     if unload_ok:
         hass.data[DOMAIN].pop(entry.entry_id, None)
     return unload_ok
+
+async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    await hass.config_entries.async_reload(entry.entry_id)
