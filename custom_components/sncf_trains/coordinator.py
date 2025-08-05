@@ -8,12 +8,13 @@ from datetime import timedelta as dt_timedelta
 _LOGGER = logging.getLogger(__name__)
 
 class SncfUpdateCoordinator(DataUpdateCoordinator):
-    def __init__(self, hass, api_client, departure, arrival, time_start, time_end, update_interval=None):
+    def __init__(self, hass, api_client, departure, arrival, time_start, time_end, update_interval=None, config_entry=None):
         self.api_client = api_client
         self.departure = departure
         self.arrival = arrival
         self.time_start = time_start
         self.time_end = time_end
+        self.config_entry = config_entry  
         # Convert update_interval (int, minutes) en timedelta, fallback à DEFAULT_UPDATE_INTERVAL (minutes)
         interval_min = update_interval if update_interval is not None else DEFAULT_UPDATE_INTERVAL
         update_interval_td = dt_timedelta(minutes=interval_min)

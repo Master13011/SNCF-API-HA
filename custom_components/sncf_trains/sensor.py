@@ -246,6 +246,18 @@ class SncfJourneySensor(SensorEntity):
     def extra_state_attributes(self):
         return self._attr_extra_state_attributes
 
+    @property
+    def device_info(self):
+        entry_id = getattr(self.coordinator.config_entry, "entry_id", None)
+        if not entry_id:
+            return None
+        return {
+            "identifiers": {(DOMAIN, entry_id)},
+            "name": f"SNCF {self.dep_name} → {self.arr_name}",
+            "manufacturer": "Master13011",
+            "model": "API",
+            "entry_type": "service",
+        }
 
 class SncfTrainSensor(SensorEntity):
     def __init__(self, main_sensor: SncfJourneySensor, train_index: int):
@@ -312,3 +324,17 @@ class SncfTrainSensor(SensorEntity):
     @property
     def extra_state_attributes(self):
         return self._attr_extra_state_attributes
+        
+
+    @property
+    def device_info(self):
+        entry_id = getattr(self.main_sensor.coordinator.config_entry, "entry_id", None)
+        if not entry_id:
+            return None
+        return {
+            "identifiers": {(DOMAIN, entry_id)},
+            "name": f"SNCF {self.main_sensor.dep_name} → {self.main_sensor.arr_name}",
+            "manufacturer": "Master13011",
+            "model": "API",
+            "entry_type": "service",
+        }
