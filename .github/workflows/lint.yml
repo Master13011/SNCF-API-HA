@@ -30,3 +30,12 @@ jobs:
 
         - name: "Format"
           run: python3 -m ruff format .
+
+        - name: "Run Black"
+          run: black --check .
+
+        - name: "Run Mypy"
+          run: mypy .
+
+        - name: "Pylint"
+          run: pylint custom_components || true
