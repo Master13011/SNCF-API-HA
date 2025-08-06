@@ -303,7 +303,7 @@ class SncfTrainSensor(SensorEntity):
         self.train_index = train_index
 
         train_num = get_train_num(main_sensor._journeys[train_index]) if main_sensor._journeys and len(main_sensor._journeys) > train_index else train_index + 1
-        self._attr_name = f"SNCF Train #{train_num} ({main_sensor.dep_name} → {main_sensor.arr_name})"
+        self._attr_name = f"SNCF Train #{train_index + 1} ({main_sensor.dep_name} → {main_sensor.arr_name})"
         self._attr_icon = "mdi:train"
         self._attr_unique_id = f"sncf_train_{main_sensor.departure}_{main_sensor.arrival}_{train_index}"
 
