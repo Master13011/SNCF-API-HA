@@ -1,7 +1,7 @@
 import base64
 import logging
 from aiohttp import ClientSession, ClientTimeout
-from typing import List, Optional
+from typing import List, Optional, Mapping
 
 API_BASE = "https://api.sncf.com"
 _LOGGER = logging.getLogger(__name__)
