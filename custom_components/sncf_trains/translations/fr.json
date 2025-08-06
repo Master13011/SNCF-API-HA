@@ -55,7 +55,9 @@
     "data": {
       "update_interval": "Intervalle pendant la plage horaire (minutes)",
       "outside_interval": "Intervalle en dehors de la plage horaire (minutes)",
-      "train_count": "Nombre de trains affichés"
+      "train_count": "Nombre de trains affichés",
+      "time_start": "Heure de début de recherche",
+      "time_end": "Heure de fin de recherche"
     }
   }
 }
