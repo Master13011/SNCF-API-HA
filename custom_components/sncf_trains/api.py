@@ -25,6 +25,7 @@ class SncfApiClient:
         else:
             raise ValueError("stop_id must start with 'stop_area:' or 'stop_point:'")
         params = {"data_freshness": "realtime", "count": max_results}
+        params = {k: str(v) for k, v in {"data_freshness": "realtime", "count": max_results}.items()}
         headers = {"Authorization": f"Basic {self._token}"}
         try:
             async with self._session.get(url, headers=headers, params=params, timeout=ClientTimeout(total=self._timeout)) as resp:
@@ -39,14 +40,15 @@ class SncfApiClient:
 
     async def fetch_journeys(self, from_id: str, to_id: str, datetime_str: str, count: int = 5) -> Optional[List[dict]]:
         url = f"{API_BASE}/v1/coverage/sncf/journeys"
-        params = {
+        params = {k: str(v) for k, v in {
             "from": from_id,
             "to": to_id,
             "datetime": datetime_str,
             "count": count,
             "data_freshness": "realtime",
             "datetime_represents": "departure"
-        }
+        }.items()}
+
         headers = {"Authorization": f"Basic {self._token}"}
         try:
             async with self._session.get(url, headers=headers, params=params, timeout=ClientTimeout(total=self._timeout)) as resp:
@@ -63,7 +65,7 @@ class SncfApiClient:
 
     async def search_stations(self, query: str) -> Optional[List[dict]]:
         url = f"{API_BASE}/v1/coverage/sncf/places"
-        params = {"q": query, "type[]": "stop_point"}
+        params = {k: str(v) for k, v in {"q": query, "type[]": "stop_point"}.items()}
         headers = {"Authorization": f"Basic {self._token}"}
         try:
             async with self._session.get(url, headers=headers, params=params, timeout=ClientTimeout(total=self._timeout)) as resp:
