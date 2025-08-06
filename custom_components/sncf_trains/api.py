@@ -24,11 +24,19 @@ class SncfApiClient:
             url = f"{API_BASE}/v1/coverage/sncf/stop_points/{stop_id}/departures"
         else:
             raise ValueError("stop_id must start with 'stop_area:' or 'stop_point:'")
-        params = {"data_freshness": "realtime", "count": max_results}
-        params = {k: str(v) for k, v in params.items()}
+        
+        params_raw: dict[str, object] = {
+            "data_freshness": "realtime",
+            "count": max_results,
+        }
+        params: Mapping[str, str] = {k: str(v) for k, v in params_raw.items()}
+
         headers = {"Authorization": f"Basic {self._token}"}
+        
         try:
-            async with self._session.get(url, headers=headers, params=params, timeout=ClientTimeout(total=self._timeout)) as resp:
+            async with self._session.get(
+                url, headers=headers, params=params, timeout=ClientTimeout(total=self._timeout)
+            ) as resp:
                 if resp.status == 429:
                     raise RuntimeError("Quota API exceeded (429 Too Many Requests)")
                 resp.raise_for_status()
