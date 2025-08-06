@@ -4,129 +4,140 @@
 ![Custom Component](https://img.shields.io/badge/Custom%20Component-oui-orange)
 ![Licence MIT](https://img.shields.io/badge/Licence-MIT-green)
 
-Intégration personnalisée Home Assistant pour suivre les horaires de trains SNCF entre deux gares, via l'API officielle [SNCF](https://www.digital.sncf.com/startup/api).  
-
-Configurez facilement les villes et gares de départ / arrivée, ainsi qu’une plage horaire pour filtrer les résultats.
+Suivez les horaires des trains SNCF entre deux gares dans Home Assistant, grâce à l’API officielle [SNCF](https://www.digital.sncf.com/startup/api).  
+Départ / arrivée, retards, durée, composition, mode (TGV, TER…), tout est intégré dans une interface configurable et traduite.
 
 ---
 
-## 🔧 Installation
+## 📦 Installation
 
 ### 1. Via HACS (recommandé)
-1. Aller dans **HACS > Intégrations > 3 points > Dépôt personnalisé**
-2. Ajouter le dépôt : `https://github.com/Master13011/SNCF-API-HA`
-3. Type de dépôt : `Intégration`
-4. Rechercher `SNCF Trains` dans HACS, installer puis redémarrer Home Assistant.
 
-### 2. Manuel (si pas HACS)
-1. Télécharger le contenu du dépôt GitHub.
+> Nécessite HACS installé dans Home Assistant
+
+1. Aller dans **HACS → Intégrations → 3 points → Dépôt personnalisé**
+2. Ajouter le dépôt : `https://github.com/Master13011/SNCF-API-HA`
+3. Type : **Intégration**
+4. Rechercher `SNCF Trains`, installer puis redémarrer Home Assistant
+
+### 2. Manuel (sans HACS)
+
+1. Télécharger le contenu du dépôt
 2. Copier le dossier `sncf_trains` dans `config/custom_components/`
-3. Redémarrer Home Assistant.
+3. Redémarrer Home Assistant
 
 ---
 
 ## ⚙️ Configuration
 
-Une fois redémarré :
-
-1. Aller dans **Paramètres > Appareils et services > Ajouter une intégration**
-2. Rechercher `SNCF Trains`
+1. Aller dans **Paramètres → Appareils & services → Ajouter une intégration**
+2. Rechercher **SNCF Trains**
 3. Suivre les étapes :
    - Clé API SNCF
-   - Ville & gare de départ
-   - Ville & gare d’arrivée
-   - Plage horaire souhaitée
+   - Ville et gare de départ
+   - Ville et gare d’arrivée
+   - Plage horaire à surveiller
 
-Vous pouvez configurer plusieurs trajets différents.
+Plusieurs trajets peuvent être configurés séparément.
 
 ---
 
-## 🧩 Options dynamiques (`options_flow`)
+## 🧩 Options dynamiques (Configurer)
 
-Une fois l'intégration ajoutée, vous pouvez ajuster dynamiquement plusieurs paramètres via l'interface sans devoir tout reconfigurer :
+Une fois configurée, cliquez sur **Configurer** pour ajuster :
 
-### Modifier les options :
-1. Aller dans **Paramètres > Appareils et services**
-2. Trouver votre intégration `SNCF Trains` > cliquez sur **Configurer**
-3. Paramètres disponibles :
-   - **Fréquence de mise à jour pendant la plage horaire**
-   - **Fréquence de mise à jour en dehors de la plage horaire**
-   - **Nombre de trains à afficher**
-   - **Plage horaire personnalisée (début / fin)**
+- ⏱ Intervalle de mise à jour pendant la plage horaire
+- 🕰 Intervalle hors plage
+- 🚆 Nombre de trains affichés
+- 🕗 Heures de début et fin de surveillance
 
-Les modifications sont prises en compte automatiquement, sans redémarrage nécessaire.
+✅ Aucun redémarrage requis. Les modifications sont appliquées dynamiquement.
 
 ---
 
 ## 🔐 Clé API SNCF
 
-Créer une clé sur [https://www.digital.sncf.com/startup/api](https://www.digital.sncf.com/startup/api) :
+Obtenez votre clé ici : [https://www.digital.sncf.com/startup/api](https://www.digital.sncf.com/startup/api)
 
-1. S'inscrire ou se connecter
-2. Copier la clé et l'utiliser dans l'intégration
+1. Créez un compte ou connectez-vous
+2. Générez une clé API gratuite
+3. Utilisez-la lors de la configuration
 
 ---
 
-## ⚙️ Variables
+## ⚙️ Variables prises en charge
 
-- `update_interval` : fréquence de mise à jour pendant la plage horaire (2 minutes par défaut)
+| Nom                 | Description |
+|----------------------|-------------|
+| `update_interval`   | Intervalle de mise à jour **pendant** la plage horaire (défaut : 2 min) |
+| `outside_interval`  | Intervalle **hors** plage horaire (défaut : 60 min) |
+| `train_count`       | Nombre de trains à afficher |
+| `time_start` / `time_end` | Heures de début et fin de la plage horaire (ex. : `06:00` → `09:00`) |
 
-> ℹ️ L'option `update_interval` s'active automatiquement **2 heures avant** le début de la plage horaire définie.
-
-- `outside_interval` : fréquence de mise à jour en dehors de la plage horaire (60 minutes par défaut)
-- `train_count` : nombre maximum de départs à afficher
-- `time_start` / `time_end` : plage horaire filtrant les départs à surveiller (ex. : 06:00 → 09:00)
+> 🕑 L’intervalle défini s’active automatiquement **2h avant** le début de plage.
 
 ---
 
 ## 📊 Capteurs créés
 
-- `sensor.sncf_<nom_gare_dep>_to_<nom_gare_arr>` : nombre de trains à venir
-- Attributs :
-  - Liste des départs avec heure, retard éventuel, mode (TGV, TER, etc.)
-  - Gares de départ et d’arrivée
-  - Plage horaire configurée
-  - Délai avant prochain départ
+- `sensor.sncf_<gare_dep>_to_<gare_arr>` : nombre de trajets directs à venir
+
+### Attributs du capteur principal :
+
+- Liste des trains à venir
+- Retards (min), direction, mode commercial
+- Numéro de train
+- Délai avant prochain départ
+- `trains_summary` (détail complet de chaque trajet)
+
+### Capteurs secondaires (enfants) pour chaque train :
+
+- Heure de départ (`device_class: timestamp`)
+- Heure d’arrivée
+- Retard estimé
+- Durée totale (`duration_minutes`)
+- Mode, direction, numéro
 
 ---
 
-## 📸 Capture d'écran
+## 📸 Aperçus
 
-<img width="354" height="453" alt="image" src="https://github.com/user-attachments/assets/15a88da4-fad0-46ca-8031-9864d3f48ed3" />
+**Carte capteur :**
 
+<img width="354" height="453" alt="sensor" src="https://github.com/user-attachments/assets/15a88da4-fad0-46ca-8031-9864d3f48ed3" />
 
-Résultat :  
+**Détails du prochain train :**
 
-<img width="608" height="262" alt="image" src="https://github.com/user-attachments/assets/39206e2a-8f44-4393-92fe-4196427b9bf9" />
+<img width="608" height="262" alt="attributes" src="https://github.com/user-attachments/assets/39206e2a-8f44-4393-92fe-4196427b9bf9" />
 
+**Dashboard Lovelace :**
 
-Dashboard :
-
-<img width="315" height="360" alt="image" src="https://github.com/user-attachments/assets/033fd0ce-ab61-4e54-83de-4bdb85d8aa58" />
+<img width="315" height="360" alt="dashboard" src="https://github.com/user-attachments/assets/033fd0ce-ab61-4e54-83de-4bdb85d8aa58" />
 
 ---
 
 ## 🛠 Développement
 
-Fonctionne avec Home Assistant `2024.5.0+`
+Compatible avec Home Assistant `2024.5+`.
 
-Structure de base :
-- `config_flow.py` : configuration UI
-- `options_flow.py` : formulaire dynamique d'options utilisateur
-- `sensor.py` : récupération des trajets
-- `coordinator.py` : logique de rafraîchissement conditionnel
-- `translations/fr.json` : support multilingue
-- `manifest.json` : déclaration de l’intégration
+Structure :
+- `__init__.py` : enregistrement de l’intégration
+- `config_flow.py` : assistant UI de configuration
+- `options_flow.py` : formulaire d’options dynamiques
+- `sensor.py` : entités de capteurs
+- `coordinator.py` : logique de récupération intelligente
+- `translations/fr.json` : interface en français
+- `manifest.json` : métadonnées et dépendances
 
 ---
 
-## 🧑‍💻 Auteur
+## 👨‍💻 Auteur
 
-- Développé par [Master13011](https://github.com/Master13011)
-- Contributions bienvenues via issues / PR sur [GitHub](https://github.com/Master13011/SNCF-API-HA)
+Développé par [Master13011](https://github.com/Master13011)  
+Contributions bienvenues via **Pull Request** ou **Issues**
 
 ---
 
 ## 📄 Licence
 
-MIT - Utilisation libre, merci de mentionner l'auteur si réutilisé.
+Code open-source sous licence **MIT**
