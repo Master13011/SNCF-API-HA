@@ -80,7 +80,8 @@ Obtenez votre clé ici : [https://www.digital.sncf.com/startup/api](https://www.
 
 ## 📊 Capteurs créés
 
-- `sensor.sncf_<gare_dep>_to_<gare_arr>` : nombre de trajets directs à venir
+- `sensor.sncf_<gare_dep>_<gare_arr>`
+- `sensor.sncf_train_X_<gare_dep>_<gare_arr>`
 
 ### Attributs du capteur principal :
 
