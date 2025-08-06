@@ -28,6 +28,7 @@ def parse_datetime(dt_str: str | None) -> datetime | None:
         return None
     try:
         naive = datetime.strptime(dt_str, "%Y%m%dT%H%M%S")
+        # Assure un datetime avec tzinfo (localisé)
         return dt_util.as_local(naive)
     except Exception:
         return None
@@ -137,7 +138,6 @@ async def async_setup_entry(hass, entry, async_add_entities):
 
 class SncfJourneySensor(SensorEntity):
     """Capteur principal résumant le nombre total de trajets directs."""
-
     def __init__(
         self,
         coordinator,
@@ -336,7 +336,10 @@ class SncfTrainSensor(SensorEntity):
         delay = int((arr_dt - base_arr_dt).total_seconds() / 60) if arr_dt and base_arr_dt else 0
 
         dt = parse_datetime(dep_time_raw)
-        self._attr_native_value = dt.isoformat() if dt else "N/A"
+        if dt:
+            self._attr_native_value = dt  # Objet datetime localisé avec tzinfo
+        else:
+            self._attr_native_value = None  # Valeur None si pas de datetime valide
         self._attr_device_class = "timestamp"
 
         train_num = get_train_num(journey)
@@ -360,7 +363,7 @@ class SncfTrainSensor(SensorEntity):
             self.async_write_ha_state()
 
     def _clear_data(self):
-        self._attr_native_value = "N/A"
+        self._attr_native_value = None
         self._attr_extra_state_attributes = {}
         self._attr_device_class = None
         if self.entity_id:
