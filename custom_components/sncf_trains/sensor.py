@@ -28,6 +28,7 @@ def parse_datetime(dt_str: str | None) -> datetime | None:
         return None
     try:
         naive = datetime.strptime(dt_str, "%Y%m%dT%H%M%S")
+        # Assure un datetime avec tzinfo (localisé)
         return dt_util.as_local(naive)
     except Exception:
         return None
@@ -137,7 +138,6 @@ async def async_setup_entry(hass, entry, async_add_entities):
 
 class SncfJourneySensor(SensorEntity):
     """Capteur principal résumant le nombre total de trajets directs."""
-
     def __init__(
         self,
         coordinator,
@@ -165,9 +165,9 @@ class SncfJourneySensor(SensorEntity):
         self._attr_native_unit_of_measurement = "trajets"
         self._attr_unique_id = f"sncf_trains_{self.departure}_{self.arrival}"
         self._attr_attribution = ATTRIBUTION
+        self._attr_native_value = None
 
         self._journeys = []
-        self._state = None
         self._attr_extra_state_attributes = {}
 
         self._next_update_time = datetime.min
@@ -178,9 +178,6 @@ class SncfJourneySensor(SensorEntity):
         """Indique si les données sont disponibles (coordonnateur OK)."""
         return self.coordinator.last_update_success
 
-    @property
-    def state(self):
-        return self._state
 
     def get_interval(self) -> timedelta:
         now = dt_util.now()
@@ -198,7 +195,7 @@ class SncfJourneySensor(SensorEntity):
             self._next_update_time = now + self.get_interval()
 
         if not self.coordinator.last_update_success:
-            self._state = STATE_UNAVAILABLE
+            self._attr_native_value = STATE_UNAVAILABLE
             self._clear_data()
             if self.entity_id:
                 self.async_write_ha_state()
@@ -207,7 +204,7 @@ class SncfJourneySensor(SensorEntity):
         journeys = self.coordinator.data or []
         direct_journeys = [j for j in journeys if len(j.get("sections", [])) == 1]
         if not direct_journeys:
-            self._state = "Aucun trajet direct trouvé"
+            self._attr_native_value = "Aucun trajet direct trouvé"
             self._attr_extra_state_attributes = {}
             if self.entity_id:
                 self.async_write_ha_state()
@@ -257,7 +254,7 @@ class SncfJourneySensor(SensorEntity):
             "next_delay_minutes": next_delay,
             "trains_summary": trains_summary,
         }
-        self._state = len(direct_journeys)
+        self._attr_native_value = len(direct_journeys)
 
         # Mise à jour capteurs enfants
         for child in self._child_sensors:
@@ -274,7 +271,7 @@ class SncfJourneySensor(SensorEntity):
             "next_delay_minutes": None,
             "trains_summary": [],
         }
-        self._state = 0
+        self._attr_native_value = 0
         self._journeys = []
 
     @property
@@ -307,7 +304,7 @@ class SncfTrainSensor(SensorEntity):
         self._attr_unique_id = f"sncf_train_{main_sensor.departure}_{main_sensor.arrival}_{train_index}"
 
         self._attr_extra_state_attributes = {}
-        self._state = None
+        self._attr_native_value = None
         self._attr_attribution = ATTRIBUTION
         self._attr_device_class = None  # sera positionné à la mise à jour
 
@@ -315,10 +312,6 @@ class SncfTrainSensor(SensorEntity):
     def available(self) -> bool:
         """Indique si la donnée est disponible."""
         return self.main_sensor.coordinator.last_update_success
-
-    @property
-    def state(self):
-        return self._state
 
     def async_update_from_main(self):
         journeys = self.main_sensor._journeys
@@ -343,7 +336,10 @@ class SncfTrainSensor(SensorEntity):
         delay = int((arr_dt - base_arr_dt).total_seconds() / 60) if arr_dt and base_arr_dt else 0
 
         dt = parse_datetime(dep_time_raw)
-        self._state = dt.isoformat() if dt else "N/A"
+        if dt:
+            self._attr_native_value = dt  # Objet datetime localisé avec tzinfo
+        else:
+            self._attr_native_value = None  # Valeur None si pas de datetime valide
         self._attr_device_class = "timestamp"
 
         train_num = get_train_num(journey)
@@ -367,7 +363,7 @@ class SncfTrainSensor(SensorEntity):
             self.async_write_ha_state()
 
     def _clear_data(self):
-        self._state = "N/A"
+        self._attr_native_value = None
         self._attr_extra_state_attributes = {}
         self._attr_device_class = None
         if self.entity_id:

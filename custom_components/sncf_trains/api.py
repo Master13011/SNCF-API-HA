@@ -1,7 +1,7 @@
 import base64
 import logging
 from aiohttp import ClientSession, ClientTimeout
-from typing import List, Optional
+from typing import List, Optional, Mapping
 
 API_BASE = "https://api.sncf.com"
 _LOGGER = logging.getLogger(__name__)
@@ -24,10 +24,19 @@ class SncfApiClient:
             url = f"{API_BASE}/v1/coverage/sncf/stop_points/{stop_id}/departures"
         else:
             raise ValueError("stop_id must start with 'stop_area:' or 'stop_point:'")
-        params = {"data_freshness": "realtime", "count": max_results}
+        
+        params_raw: dict[str, object] = {
+            "data_freshness": "realtime",
+            "count": max_results,
+        }
+        params: Mapping[str, str] = {k: str(v) for k, v in params_raw.items()}
+    
         headers = {"Authorization": f"Basic {self._token}"}
+        
         try:
-            async with self._session.get(url, headers=headers, params=params, timeout=ClientTimeout(total=self._timeout)) as resp:
+            async with self._session.get(
+                url, headers=headers, params=params, timeout=ClientTimeout(total=self._timeout)
+            ) as resp:
                 if resp.status == 429:
                     raise RuntimeError("Quota API exceeded (429 Too Many Requests)")
                 resp.raise_for_status()
@@ -39,14 +48,16 @@ class SncfApiClient:
 
     async def fetch_journeys(self, from_id: str, to_id: str, datetime_str: str, count: int = 5) -> Optional[List[dict]]:
         url = f"{API_BASE}/v1/coverage/sncf/journeys"
-        params = {
+        params_raw: dict[str, object] = {
             "from": from_id,
             "to": to_id,
             "datetime": datetime_str,
             "count": count,
             "data_freshness": "realtime",
-            "datetime_represents": "departure"
+            "datetime_represents": "departure",
         }
+        params: Mapping[str, str] = {k: str(v) for k, v in params_raw.items()}
+
         headers = {"Authorization": f"Basic {self._token}"}
         try:
             async with self._session.get(url, headers=headers, params=params, timeout=ClientTimeout(total=self._timeout)) as resp:
@@ -63,7 +74,11 @@ class SncfApiClient:
 
     async def search_stations(self, query: str) -> Optional[List[dict]]:
         url = f"{API_BASE}/v1/coverage/sncf/places"
-        params = {"q": query, "type[]": "stop_point"}
+        params_raw: dict[str, object] = {
+            "q": query,
+            "type[]": "stop_point",
+        }
+        params: Mapping[str, str] = {k: str(v) for k, v in params_raw.items()}
         headers = {"Authorization": f"Basic {self._token}"}
         try:
             async with self._session.get(url, headers=headers, params=params, timeout=ClientTimeout(total=self._timeout)) as resp:
