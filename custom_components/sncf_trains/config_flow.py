@@ -1,6 +1,8 @@
 from homeassistant import config_entries
 import voluptuous as vol
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
+from homeassistant.core import callback
+
 from .const import (
     DOMAIN,
     CONF_API_KEY,
@@ -145,6 +147,7 @@ class SncfTrainsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             return False
 
     @staticmethod
+    @callback
     def async_get_options_flow(config_entry):
         from .options_flow import SncfTrainsOptionsFlowHandler
         return SncfTrainsOptionsFlowHandler(config_entry)
