@@ -1,4 +1,4 @@
-from homeassistant.config_entries import OptionsFlowWithConfigEntry
+from homeassistant.config_entries import OptionsFlow
 import voluptuous as vol
 
 from .const import (
@@ -12,14 +12,11 @@ from .const import (
     CONF_TIME_END,
 )
 
-
-class SncfTrainsOptionsFlowHandler(OptionsFlowWithConfigEntry):
+class SncfTrainsOptionsFlowHandler(OptionsFlow):
     def __init__(self, config_entry):
-        super().__init__(config_entry)
+        super().__init__()
 
     async def async_step_init(self, user_input=None):
-        config_entry = self.config_entry
-
         if user_input is not None:
             return self.async_create_entry(
                 title="",
@@ -30,11 +27,11 @@ class SncfTrainsOptionsFlowHandler(OptionsFlowWithConfigEntry):
                     "train_count": user_input["train_count"],
                     CONF_TIME_START: user_input["time_start"],
                     CONF_TIME_END: user_input["time_end"],
-                }
+                },
             )
 
-        options = config_entry.options or {}
-        data_fallback = config_entry.data
+        options = self.config_entry.options if self.config_entry else {}
+        data_fallback = self.config_entry.data if self.config_entry else {}
 
         values = {
             CONF_API_KEY: options.get(CONF_API_KEY, ""),
@@ -45,14 +42,15 @@ class SncfTrainsOptionsFlowHandler(OptionsFlowWithConfigEntry):
             CONF_TIME_END: options.get(CONF_TIME_END, data_fallback.get(CONF_TIME_END, DEFAULT_TIME_END)),
         }
 
-        return self.async_show_form(
-            step_id="init",
-            data_schema=vol.Schema({
+        schema = vol.Schema(
+            {
                 vol.Required(CONF_API_KEY, default=values[CONF_API_KEY]): str,
                 vol.Required("update_interval", default=values["update_interval"]): int,
                 vol.Required("outside_interval", default=values["outside_interval"]): int,
                 vol.Required("train_count", default=values["train_count"]): int,
                 vol.Required("time_start", default=values[CONF_TIME_START]): str,
                 vol.Required("time_end", default=values[CONF_TIME_END]): str,
-            })
+            }
         )
+
+        return self.async_show_form(step_id="init", data_schema=schema)
