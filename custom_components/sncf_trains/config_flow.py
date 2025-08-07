@@ -10,9 +10,12 @@ from .const import (
     CONF_TIME_END,
     DEFAULT_TIME_START,
     DEFAULT_TIME_END,
-
+    DEFAULT_UPDATE_INTERVAL,
+    DEFAULT_OUTSIDE_INTERVAL,
+    DEFAULT_TRAIN_COUNT,
 )
 from .api import SncfApiClient
+
 
 class SncfTrainsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
@@ -112,20 +115,25 @@ class SncfTrainsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             return self.async_create_entry(
                 title=f"SNCF: {dep_name} → {arr_name}",
                 data={
-                    CONF_API_KEY: self.api_key,
                     CONF_FROM: self.departure_station,
                     CONF_TO: self.arrival_station,
                     "departure_name": dep_name,
                     "arrival_name": arr_name,
+                },
+                options={
+                    CONF_API_KEY: self.api_key,
                     CONF_TIME_START: self.time_start,
                     CONF_TIME_END: self.time_end,
-                },
+                    "update_interval": DEFAULT_UPDATE_INTERVAL,
+                    "outside_interval": DEFAULT_OUTSIDE_INTERVAL,
+                    "train_count": DEFAULT_TRAIN_COUNT,
+                }
             )
         return self.async_show_form(
             step_id="time_range",
             data_schema=vol.Schema({
-                vol.Required(CONF_TIME_START, default=self.time_start or DEFAULT_TIME_START): str,
-                vol.Required(CONF_TIME_END, default=self.time_end or DEFAULT_TIME_END): str,
+                vol.Required(CONF_TIME_START, default=self.time_start): str,
+                vol.Required(CONF_TIME_END, default=self.time_end): str,
             }),
         )
 
