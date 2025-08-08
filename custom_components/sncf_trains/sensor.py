@@ -7,6 +7,8 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
+from typing import Any, Dict, List, cast
+
 
 from .const import (
     DOMAIN,
@@ -85,11 +87,10 @@ async def async_setup_entry(
     outside_interval = entry.options.get("outside_interval", DEFAULT_OUTSIDE_INTERVAL)
     train_count = entry.options.get("train_count", DEFAULT_TRAIN_COUNT)
 
-    direct_journeys = [
+    direct_journeys: List[Dict[str, Any]] = [
         j for j in (coordinator.data if isinstance(coordinator.data, list) else [])
         if isinstance(j, dict) and len(j.get("sections", [])) == 1
     ]
-
     if not direct_journeys:
         main_sensor = SncfJourneySensor(
             coordinator,
@@ -137,9 +138,9 @@ async def async_setup_entry(
     for s in train_sensors:
         main_sensor._child_sensors.append(s)
 
-    entities: list[SensorEntity] = [main_sensor] + train_sensors
-    async_add_entities(entities, True)
-    
+    entities = [main_sensor] + train_sensors
+    async_add_entities(cast(list[SensorEntity], entities), True)
+
 class SncfJourneySensor(CoordinatorEntity, SensorEntity):
     """Capteur principal résumant le nombre total de trajets directs."""
 
