@@ -87,10 +87,13 @@ async def async_setup_entry(
     outside_interval = entry.options.get("outside_interval", DEFAULT_OUTSIDE_INTERVAL)
     train_count = entry.options.get("train_count", DEFAULT_TRAIN_COUNT)
 
-    direct_journeys: List[Dict[str, Any]] = [
-        j for j in (coordinator.data if isinstance(coordinator.data, list) else [])
-        if isinstance(j, dict) and len(j.get("sections", [])) == 1
-    ]
+    direct_journeys: List[Dict[str, Any]] = []
+    data = coordinator.data if isinstance(coordinator.data, list) else []
+
+    for j in data:
+        if isinstance(j, dict) and len(j.get("sections", [])) == 1:
+            direct_journeys.append(j)
+            
     if not direct_journeys:
         main_sensor = SncfJourneySensor(
             coordinator,
