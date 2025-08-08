@@ -85,7 +85,10 @@ async def async_setup_entry(
     outside_interval = entry.options.get("outside_interval", DEFAULT_OUTSIDE_INTERVAL)
     train_count = entry.options.get("train_count", DEFAULT_TRAIN_COUNT)
 
-    direct_journeys = [j for j in (coordinator.data or []) if len(j.get("sections", [])) == 1]
+    direct_journeys = [
+        j for j in (coordinator.data if isinstance(coordinator.data, list) else [])
+        if isinstance(j, dict) and len(j.get("sections", [])) == 1
+    ]
 
     if not direct_journeys:
         main_sensor = SncfJourneySensor(
@@ -134,9 +137,9 @@ async def async_setup_entry(
     for s in train_sensors:
         main_sensor._child_sensors.append(s)
 
-    async_add_entities([main_sensor] + train_sensors, True)
-
-
+    entities: list[SensorEntity] = [main_sensor] + train_sensors
+    async_add_entities(entities, True)
+    
 class SncfJourneySensor(CoordinatorEntity, SensorEntity):
     """Capteur principal résumant le nombre total de trajets directs."""
 
