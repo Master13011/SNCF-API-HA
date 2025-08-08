@@ -1,9 +1,12 @@
 import logging
 from datetime import datetime
 from homeassistant.util import dt as dt_util
-from homeassistant.components.sensor import SensorEntity
+from homeassistant.components.sensor import SensorEntity, SensorDeviceClass
 from homeassistant.helpers.entity_registry import async_get as async_get_entity_registry
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.core import HomeAssistant
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
 from .const import (
     DOMAIN,
@@ -63,7 +66,11 @@ def get_duration(journey: dict) -> int:
     return 0
 
 
-async def async_setup_entry(hass, entry, async_add_entities):
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback
+) -> None:
     """Setup des capteurs pour l'entrée."""
     coordinator: SncfUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
 
@@ -239,7 +246,7 @@ class SncfTrainSensor(CoordinatorEntity, SensorEntity):
         self._attr_icon = "mdi:train"
         self._attr_unique_id = f"sncf_train_{main_sensor.departure}_{main_sensor.arrival}_{train_index}"
         self._attr_attribution = ATTRIBUTION
-        self._attr_device_class = "timestamp"
+        self._attr_device_class = SensorDeviceClass.TIMESTAMP
 
     @property
     def native_value(self):
