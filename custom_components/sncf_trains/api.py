@@ -38,12 +38,14 @@ class SncfApiClient:
                 url, headers=headers, params=params, timeout=ClientTimeout(total=self._timeout)
             ) as resp:
                 if resp.status == 429:
+                    _LOGGER.warning("Quota API dépassé (429) sur %s avec params %s", url, params)
                     raise RuntimeError("Quota API exceeded (429 Too Many Requests)")
                 resp.raise_for_status()
                 data = await resp.json()
                 return data.get("departures", [])
         except Exception as e:
             _LOGGER.error("Error fetching departures from SNCF API: %s", e)
+            _LOGGER.debug("URL: %s, Params: %s", url, params)
             return None
 
     async def fetch_journeys(self, from_id: str, to_id: str, datetime_str: str, count: int = 5) -> Optional[List[dict]]:
