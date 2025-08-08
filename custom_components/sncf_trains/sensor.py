@@ -2,7 +2,6 @@ import logging
 from datetime import datetime
 from homeassistant.util import dt as dt_util
 from homeassistant.components.sensor import SensorEntity
-from homeassistant.const import STATE_UNAVAILABLE
 from homeassistant.helpers.entity_registry import async_get as async_get_entity_registry
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
