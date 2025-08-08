@@ -87,7 +87,6 @@ async def async_setup_entry(
     outside_interval = entry.options.get("outside_interval", DEFAULT_OUTSIDE_INTERVAL)
     train_count = entry.options.get("train_count", DEFAULT_TRAIN_COUNT)
 
-    direct_journeys: List[Dict[str, Any]] = []
     data: List[Dict[str, Any]] = coordinator.data if isinstance(coordinator.data, list) else []
 
     direct_journeys: List[Dict[str, Any]] = [
