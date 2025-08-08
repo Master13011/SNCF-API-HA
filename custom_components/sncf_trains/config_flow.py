@@ -18,7 +18,6 @@ from .const import (
 )
 from .api import SncfApiClient
 
-
 class SncfTrainsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
 
