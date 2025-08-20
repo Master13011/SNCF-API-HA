@@ -1,35 +1,39 @@
-type: markdown
-title: Trains Nice ⇄ Monaco
-content: |-
-  ### 🚄 Départs Nice → Monaco
-  {% for train in [
-    'sensor.sncf_train_1_XX',
-    'sensor.sncf_train_2_XX',
-    'sensor.sncf_train_3_XX'
-  ] %}
-    {% set t = state_attr(train, 'departure_time') %}
-    {% set b = state_attr(train, 'base_departure_time') %}
-    {% set r = state_attr(train, 'delay_minutes') %}
-    {% set name = state_attr(train, 'direction') %}
-    {% set h = t.split(' - ')[1] if t else '??:??' %}
-    {% set hb = b.split(' - ')[1] if b else '??:??' %}
-    {% set s = "<s>" ~ hb ~ "</s> " ~ h if r > 0 else h %}
-    {% set st = "🚨 Retard: " ~ r ~ " min" if r > 0 else "✅ À l'heure" %}
-    **{{ s }} - {{ name }} - {{ st }}**
-  {% endfor %}
-  ### 🚄 Départs Monaco → Nice
-  {% for train in [
-    'sensor.sncf_train_1_XX',
-    'sensor.sncf_train_2_XX',
-    'sensor.sncf_train_3_XX'
-  ] %}
-    {% set t = state_attr(train, 'departure_time') %}
-    {% set b = state_attr(train, 'base_departure_time') %}
-    {% set r = state_attr(train, 'delay_minutes') %}
-    {% set name = state_attr(train, 'direction') %}
-    {% set h = t.split(' - ')[1] if t else '??:??' %}
-    {% set hb = b.split(' - ')[1] if b else '??:??' %}
-    {% set s = "<s>" ~ hb ~ "</s> " ~ h if r > 0 else h %}
-    {% set st = "🚨 Retard: " ~ r ~ " min" if r > 0 else "✅ À l'heure" %}
-    **{{ s }} - {{ name }} - {{ st }}**
-  {% endfor %}
+### 🚄 Départs Nice → Monaco
+{% for train in [
+  'sensor.sncf_train_1_XX',
+  'sensor.sncf_train_2_XX',
+  'sensor.sncf_train_3_XX',
+  'sensor.sncf_train_4_XX'
+] %}
+  {% set t = state_attr(train, 'departure_time') %}
+  {% set b = state_attr(train, 'base_departure_time') %}
+  {% set r = state_attr(train, 'delay_minutes') | int(0) %}
+  {% set name = state_attr(train, 'direction') | default("Inconnu") %}
+
+  {% set t_short = (t.split(' - ')[0][:5] ~ ' - ' ~ t.split(' - ')[1]) if t else '??/?? - ??:??' %}
+  {% set b_short = (b.split(' - ')[0][:5] ~ ' - ' ~ b.split(' - ')[1]) if b else '??/?? - ??:??' %}
+  {% set s = "<s>" ~ b_short ~ "</s> " ~ t_short if r > 0 else t_short %}
+  {% set st = "🚨 Retard: " ~ r ~ " min" if r > 0 else "✅ À l'heure" %}
+
+  **{{ s }} - {{ name }} - {{ st }}**
+{% endfor %}
+
+### 🚄 Départs Monaco → Nice
+{% for train in [
+  'sensor.sncf_train_1_XX',
+  'sensor.sncf_train_2_XX',
+  'sensor.sncf_train_3_XX',
+  'sensor.sncf_train_4_XX'
+] %}
+  {% set t = state_attr(train, 'departure_time') %}
+  {% set b = state_attr(train, 'base_departure_time') %}
+  {% set r = state_attr(train, 'delay_minutes') | int(0) %}
+  {% set name = state_attr(train, 'direction') | default("Inconnu") %}
+
+  {% set t_short = (t.split(' - ')[0][:5] ~ ' - ' ~ t.split(' - ')[1]) if t else '??/?? - ??:??' %}
+  {% set b_short = (b.split(' - ')[0][:5] ~ ' - ' ~ b.split(' - ')[1]) if b else '??/?? - ??:??' %}
+  {% set s = "<s>" ~ b_short ~ "</s> " ~ t_short if r > 0 else t_short %}
+  {% set st = "🚨 Retard: " ~ r ~ " min" if r > 0 else "✅ À l'heure" %}
+
+  **{{ s }} - {{ name }} - {{ st }}**
+{% endfor %}
