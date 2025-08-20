@@ -2,7 +2,7 @@
   "name": "SNCF Trains HA",
   "country": "FR",
   "render_readme": true,
-  "homeassistant": "2024.5.0",
+  "homeassistant": "2025.8.2",
   "zip_release": true,
   "filename": "sncf_trains_ha.zip"
 }
