@@ -3,6 +3,7 @@ from datetime import timedelta
 from homeassistant.util import dt as dt_util
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from .const import DEFAULT_UPDATE_INTERVAL, DEFAULT_OUTSIDE_INTERVAL
+from homeassistant.exceptions import ConfigEntryAuthFailed
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -96,9 +97,10 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
                 count=10,
             )
         except Exception as err:
-            _LOGGER.error(
-                "Erreur lors de la récupération des trajets SNCF: %s", err
-            )
+            # Si c'est une erreur d'authentification
+            if "401" in str(err) or "403" in str(err):
+                raise ConfigEntryAuthFailed("Clé API invalide ou expirée") from err
+            _LOGGER.error("Erreur lors de la récupération des trajets SNCF: %s", err)
             raise UpdateFailed(err)
 
         if journeys is None:

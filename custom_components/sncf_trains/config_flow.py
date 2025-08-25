@@ -22,16 +22,16 @@ class SncfTrainsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     VERSION = 1
 
     def __init__(self):
-        self.api_key = None
-        self.api_client = None
-        self.departure_city = None
-        self.departure_station = None
-        self.arrival_city = None
-        self.arrival_station = None
-        self.time_start = DEFAULT_TIME_START
-        self.time_end = DEFAULT_TIME_END
-        self.departure_options = {}
-        self.arrival_options = {}
+        self.api_key: str | None = None
+        self.api_client: SncfApiClient | None = None
+        self.departure_city: str | None = None
+        self.departure_station: str | None = None
+        self.arrival_city: str | None = None
+        self.arrival_station: str | None = None
+        self.time_start: str = DEFAULT_TIME_START
+        self.time_end: str = DEFAULT_TIME_END
+        self.departure_options: dict = {}
+        self.arrival_options: dict = {}
 
     async def async_step_user(self, user_input=None):
         errors = {}
@@ -113,6 +113,12 @@ class SncfTrainsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             self.time_end = user_input.get(CONF_TIME_END, DEFAULT_TIME_END)
             dep_name = self.departure_options.get(self.departure_station, {}).get("name", self.departure_station)
             arr_name = self.arrival_options.get(self.arrival_station, {}).get("name", self.arrival_station)
+
+            await self.async_set_unique_id(
+                f"{self.departure_station}->{self.arrival_station}"
+            )
+            self._abort_if_unique_id_configured()
+
             return self.async_create_entry(
                 title=f"SNCF: {dep_name} → {arr_name}",
                 data={

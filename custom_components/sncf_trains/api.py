@@ -2,6 +2,7 @@ import base64
 import logging
 from aiohttp import ClientSession, ClientTimeout
 from typing import List, Optional, Mapping
+from homeassistant.exceptions import ConfigEntryAuthFailed
 
 API_BASE = "https://api.sncf.com"
 _LOGGER = logging.getLogger(__name__)
@@ -64,7 +65,7 @@ class SncfApiClient:
         try:
             async with self._session.get(url, headers=headers, params=params, timeout=ClientTimeout(total=self._timeout)) as resp:
                 if resp.status == 401:
-                    raise RuntimeError("Unauthorized: check your API key.")
+                    raise ConfigEntryAuthFailed("Unauthorized: check your API key.")
                 if resp.status == 429:
                     raise RuntimeError("Quota exceeded: 429 Too Many Requests.")
                 resp.raise_for_status()

@@ -13,8 +13,6 @@
   "loggers": [
     "custom_components.sncf_trains"
   ],
-  "requirements": [
-    "aiohttp"
-  ],
+  "requirements": [],
   "version": "1.0.0"
 }
