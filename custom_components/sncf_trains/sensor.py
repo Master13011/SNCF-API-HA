@@ -8,7 +8,6 @@ from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from typing import Any, cast
-from homeassistant.helpers.device_registry import DeviceEntryType
 
 from .const import (
     DOMAIN,
@@ -134,11 +133,11 @@ class SncfJourneySensor(CoordinatorEntity, SensorEntity):
         self.arrival = arrival
         self.dep_name = departure_name
         self.arr_name = arrival_name
-
+        entry_id = coordinator.config_entry.entry_id
         self._attr_name = f"SNCF: {self.dep_name} → {self.arr_name}"
         self._attr_icon = "mdi:train"
-        self._attr_native_unit_of_measurement = None
-        self._attr_unique_id = f"sncf_trains_{self.departure}_{self.arrival}"
+        self._attr_native_unit_of_measurement = "trajets"
+        self._attr_unique_id = f"{entry_id}_sncf_trains_{self.departure}_{self.arrival}"
         self._attr_attribution = ATTRIBUTION
         self._journeys: list[dict] = []
         self._child_sensors: list[SensorEntity] = []
@@ -206,7 +205,7 @@ class SncfJourneySensor(CoordinatorEntity, SensorEntity):
             "name": f"SNCF {self.dep_name} → {self.arr_name}",
             "manufacturer": "Master13011",
             "model": "API",
-            "entry_type": DeviceEntryType.SERVICE,
+            "entry_type": DeviceEntryType.SERVICE
         } if entry_id else None
 
 
@@ -217,10 +216,10 @@ class SncfTrainSensor(CoordinatorEntity, SensorEntity):
         super().__init__(main_sensor.coordinator)
         self.main_sensor = main_sensor
         self.train_index = train_index
-
+        entry_id = main_sensor.coordinator.config_entry.entry_id
         self._attr_name = f"SNCF Train #{train_index + 1} ({main_sensor.dep_name} → {main_sensor.arr_name})"
         self._attr_icon = "mdi:train"
-        self._attr_unique_id = f"sncf_train_{main_sensor.departure}_{main_sensor.arrival}_{train_index}"
+        self._attr_unique_id = f"{entry_id}_sncf_train_{main_sensor.departure}_{main_sensor.arrival}_{train_index}"
         self._attr_attribution = ATTRIBUTION
         self._attr_device_class = SensorDeviceClass.TIMESTAMP
 
@@ -266,5 +265,5 @@ class SncfTrainSensor(CoordinatorEntity, SensorEntity):
             "name": f"SNCF {self.main_sensor.dep_name} → {self.main_sensor.arr_name}",
             "manufacturer": "Master13011",
             "model": "API",
-            "entry_type": "service",
+            "entry_type": DeviceEntryType.SERVICE,
         } if entry_id else None
