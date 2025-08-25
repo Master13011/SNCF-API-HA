@@ -7,7 +7,8 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
-from typing import Any
+from typing import Any, cast
+from homeassistant.helpers.device_registry import DeviceEntryType
 
 from .const import (
     DOMAIN,
@@ -136,7 +137,7 @@ class SncfJourneySensor(CoordinatorEntity, SensorEntity):
 
         self._attr_name = f"SNCF: {self.dep_name} → {self.arr_name}"
         self._attr_icon = "mdi:train"
-        self._attr_native_unit_of_measurement = "trajets"
+        self._attr_native_unit_of_measurement = None
         self._attr_unique_id = f"sncf_trains_{self.departure}_{self.arrival}"
         self._attr_attribution = ATTRIBUTION
         self._journeys: list[dict] = []
@@ -205,7 +206,7 @@ class SncfJourneySensor(CoordinatorEntity, SensorEntity):
             "name": f"SNCF {self.dep_name} → {self.arr_name}",
             "manufacturer": "Master13011",
             "model": "API",
-            "entry_type": "service",
+            "entry_type": DeviceEntryType.SERVICE,
         } if entry_id else None
 
 
