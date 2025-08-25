@@ -2,13 +2,12 @@ import logging
 from datetime import datetime
 from homeassistant.util import dt as dt_util
 from homeassistant.components.sensor import SensorEntity, SensorDeviceClass
-from homeassistant.helpers.entity_registry import async_get as async_get_entity_registry
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from typing import Any, Dict, List, cast
-
 
 from .const import (
     DOMAIN,
@@ -30,7 +29,7 @@ _LOGGER = logging.getLogger(__name__)
 
 def parse_datetime(dt_str: str | None) -> datetime | None:
     """Convertit une string Navitia en datetime local Home Assistant."""
-    if dt_str is None:
+    if not dt_str:
         return None
     try:
         naive = datetime.strptime(dt_str, "%Y%m%dT%H%M%S")
@@ -42,9 +41,7 @@ def parse_datetime(dt_str: str | None) -> datetime | None:
 def format_time(dt_str: str | None) -> str:
     """Formate une datetime Navitia en chaîne lisible (dd/mm/YYYY - HH:MM)."""
     dt = parse_datetime(dt_str)
-    if not dt:
-        return "N/A"
-    return dt.strftime("%d/%m/%Y - %H:%M")
+    return dt.strftime("%d/%m/%Y - %H:%M") if dt else "N/A"
 
 
 def get_train_num(journey: dict) -> str:
@@ -54,8 +51,8 @@ def get_train_num(journey: dict) -> str:
         return trip_num
     sections = journey.get("sections", [])
     if sections:
-        display_infos = sections[0].get("display_informations", {})
-        return display_infos.get("trip_short_name") or display_infos.get("num", "")
+        infos = sections[0].get("display_informations", {})
+        return infos.get("trip_short_name") or infos.get("num", "")
     return ""
 
 
@@ -63,15 +60,13 @@ def get_duration(journey: dict) -> int:
     """Calcule la durée du trajet en minutes."""
     dep = parse_datetime(journey.get("departure_date_time"))
     arr = parse_datetime(journey.get("arrival_date_time"))
-    if dep and arr:
-        return int((arr - dep).total_seconds() / 60)
-    return 0
+    return int((arr - dep).total_seconds() / 60) if dep and arr else 0
 
 
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
-    async_add_entities: AddEntitiesCallback
+    async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Setup des capteurs pour l'entrée."""
     coordinator: SncfUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
@@ -88,28 +83,9 @@ async def async_setup_entry(
     train_count = entry.options.get("train_count", DEFAULT_TRAIN_COUNT)
 
     data: List[Dict[str, Any]] = coordinator.data if isinstance(coordinator.data, list) else []
+    direct_journeys: List[Dict[str, Any]] = [j for j in data if isinstance(j, dict) and len(j.get("sections", [])) == 1]
 
-    direct_journeys: List[Dict[str, Any]] = [
-        j for j in data
-        if isinstance(j, dict) and len(j.get("sections", [])) == 1
-    ]
-    if not direct_journeys:
-        main_sensor = SncfJourneySensor(
-            coordinator,
-            departure,
-            arrival,
-            departure_name,
-            arrival_name,
-            time_start,
-            time_end,
-            update_interval,
-            outside_interval,
-        )
-        main_sensor._journeys = []
-        async_add_entities([main_sensor], True)
-        return
-
-    display_count = min(len(direct_journeys), train_count)
+    # Création du capteur principal
     main_sensor = SncfJourneySensor(
         coordinator,
         departure,
@@ -123,25 +99,30 @@ async def async_setup_entry(
     )
     main_sensor._journeys = direct_journeys
 
-    train_sensors = [SncfTrainSensor(main_sensor, idx) for idx in range(display_count)]
+    entities: list[SensorEntity] = [main_sensor]
 
-    entity_registry = async_get_entity_registry(hass)
-    prefix = f"sncf_train_{departure}_{arrival}_"
-    for entity in list(entity_registry.entities.values()):
-        if entity.domain == "sensor" and entity.unique_id.startswith(prefix):
-            try:
-                index = int(entity.unique_id.split("_")[-1])
-                if index >= display_count:
-                    _LOGGER.info(f"Suppression du capteur obsolète : {entity.entity_id}")
-                    entity_registry.async_remove(entity.entity_id)
-            except ValueError:
-                continue
+    if direct_journeys:
+        display_count = min(len(direct_journeys), train_count)
+        train_sensors = [SncfTrainSensor(main_sensor, idx) for idx in range(display_count)]
 
-    for s in train_sensors:
-        main_sensor._child_sensors.append(s)
+        # Nettoyage des vieux capteurs obsolètes
+        entity_registry = er.async_get(hass)
+        prefix = f"sncf_train_{departure}_{arrival}_"
+        for entity in list(entity_registry.entities.values()):
+            if entity.domain == "sensor" and entity.unique_id.startswith(prefix):
+                try:
+                    index = int(entity.unique_id.split("_")[-1])
+                    if index >= display_count:
+                        _LOGGER.info("Suppression capteur obsolète : %s", entity.entity_id)
+                        entity_registry.async_remove(entity.entity_id)
+                except ValueError:
+                    continue
 
-    entities = [main_sensor] + train_sensors
+        main_sensor._child_sensors.extend(train_sensors)
+        entities.extend(train_sensors)
+
     async_add_entities(cast(list[SensorEntity], entities), True)
+
 
 class SncfJourneySensor(CoordinatorEntity, SensorEntity):
     """Capteur principal résumant le nombre total de trajets directs."""
@@ -152,19 +133,14 @@ class SncfJourneySensor(CoordinatorEntity, SensorEntity):
         self.arrival = arrival
         self.dep_name = departure_name
         self.arr_name = arrival_name
-        self.start_time = start_time
-        self.end_time = end_time
-        self.update_interval = update_interval
-        self.outside_interval = outside_interval
 
         self._attr_name = f"SNCF: {self.dep_name} → {self.arr_name}"
         self._attr_icon = "mdi:train"
         self._attr_native_unit_of_measurement = "trajets"
         self._attr_unique_id = f"sncf_trains_{self.departure}_{self.arrival}"
         self._attr_attribution = ATTRIBUTION
-        self._journeys = []
-        self._attr_extra_state_attributes = {}
-        self._child_sensors = []
+        self._journeys: list[dict] = []
+        self._child_sensors: list[SensorEntity] = []
 
     @property
     def native_value(self):
@@ -175,8 +151,7 @@ class SncfJourneySensor(CoordinatorEntity, SensorEntity):
 
     @property
     def extra_state_attributes(self):
-        journeys = self._journeys
-        if not journeys:
+        if not self._journeys:
             return {
                 "next_trains": [],
                 "delay_minutes": [],
@@ -185,15 +160,11 @@ class SncfJourneySensor(CoordinatorEntity, SensorEntity):
                 "trains_summary": [],
             }
 
-        delays = []
+        delays, trains_summary, next_trains = [], [], []
         next_delay = None
-        trains_summary = []
-        next_trains = []
 
-        for i, j in enumerate(journeys):
+        for i, j in enumerate(self._journeys):
             section = j.get("sections", [{}])[0]
-            base_dep = format_time(section.get("base_departure_date_time"))
-            base_arr = format_time(section.get("base_arrival_date_time"))
             arr_time = parse_datetime(j.get("arrival_date_time"))
             base_arrival = parse_datetime(section.get("base_arrival_date_time"))
 
@@ -206,8 +177,8 @@ class SncfJourneySensor(CoordinatorEntity, SensorEntity):
             trains_summary.append({
                 "departure_time": format_time(j.get("departure_date_time")),
                 "arrival_time": format_time(j.get("arrival_date_time")),
-                "base_departure_time": base_dep,
-                "base_arrival_time": base_arr,
+                "base_departure_time": format_time(section.get("base_departure_date_time")),
+                "base_arrival_time": format_time(section.get("base_arrival_date_time")),
                 "departure_stop_id": self.departure,
                 "arrival_stop_id": self.arrival,
                 "direction": section.get("display_informations", {}).get("direction", ""),
@@ -219,7 +190,7 @@ class SncfJourneySensor(CoordinatorEntity, SensorEntity):
             })
 
         return {
-            "next_trains": next_trains,
+            "next_trains": "• " + "  •  ".join(next_trains),
             "delay_minutes": delays,
             "has_delay": next_delay > 0 if next_delay is not None else False,
             "next_delay_minutes": next_delay,
@@ -229,15 +200,13 @@ class SncfJourneySensor(CoordinatorEntity, SensorEntity):
     @property
     def device_info(self):
         entry_id = getattr(self.coordinator.config_entry, "entry_id", None)
-        if not entry_id:
-            return None
         return {
             "identifiers": {(DOMAIN, entry_id)},
             "name": f"SNCF {self.dep_name} → {self.arr_name}",
             "manufacturer": "Master13011",
             "model": "API",
             "entry_type": "service",
-        }
+        } if entry_id else None
 
 
 class SncfTrainSensor(CoordinatorEntity, SensorEntity):
@@ -259,47 +228,42 @@ class SncfTrainSensor(CoordinatorEntity, SensorEntity):
         journeys = self.main_sensor._journeys
         if not journeys or len(journeys) <= self.train_index:
             return None
-        dep_time_raw = journeys[self.train_index].get("departure_date_time")
-        dt = parse_datetime(dep_time_raw)
-        return dt
+        return parse_datetime(journeys[self.train_index].get("departure_date_time"))
 
     @property
     def extra_state_attributes(self):
         journeys = self.main_sensor._journeys
         if not journeys or len(journeys) <= self.train_index:
             return {}
-        journey = journeys[self.train_index]
-        section = journey.get("sections", [{}])[0]
-        dep_time_raw = journey.get("departure_date_time")
-        arr_time_raw = journey.get("arrival_date_time")
-        arr_dt = parse_datetime(arr_time_raw)
+        j = journeys[self.train_index]
+        section = j.get("sections", [{}])[0]
+        arr_dt = parse_datetime(j.get("arrival_date_time"))
         base_arr_dt = parse_datetime(section.get("base_arrival_date_time"))
         delay = int((arr_dt - base_arr_dt).total_seconds() / 60) if arr_dt and base_arr_dt else 0
+
         return {
-            "departure_time": format_time(dep_time_raw),
-            "arrival_time": format_time(arr_time_raw),
+            "departure_time": format_time(j.get("departure_date_time")),
+            "arrival_time": format_time(j.get("arrival_date_time")),
             "base_departure_time": format_time(section.get("base_departure_date_time")),
             "base_arrival_time": format_time(section.get("base_arrival_date_time")),
             "delay_minutes": delay,
-            "duration_minutes": get_duration(journey),
+            "duration_minutes": get_duration(j),
             "has_delay": delay > 0,
             "departure_stop_id": self.main_sensor.departure,
             "arrival_stop_id": self.main_sensor.arrival,
             "direction": section.get("display_informations", {}).get("direction", ""),
             "physical_mode": section.get("display_informations", {}).get("physical_mode", ""),
             "commercial_mode": section.get("display_informations", {}).get("commercial_mode", ""),
-            "train_num": get_train_num(journey),
+            "train_num": get_train_num(j),
         }
 
     @property
     def device_info(self):
         entry_id = getattr(self.main_sensor.coordinator.config_entry, "entry_id", None)
-        if not entry_id:
-            return None
         return {
             "identifiers": {(DOMAIN, entry_id)},
             "name": f"SNCF {self.main_sensor.dep_name} → {self.main_sensor.arr_name}",
             "manufacturer": "Master13011",
             "model": "API",
             "entry_type": "service",
-        }
+        } if entry_id else None
