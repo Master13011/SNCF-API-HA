@@ -14,5 +14,6 @@
     "custom_components.sncf_trains"
   ],
   "requirements": [],
-  "version": "1.0.0"
+  "version": "1.0.0",
+  "integration_type": "service"
 }
