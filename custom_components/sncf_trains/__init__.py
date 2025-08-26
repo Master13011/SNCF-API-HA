@@ -5,7 +5,7 @@ from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .api import SncfApiClient
-from .const import DOMAIN, CONF_API_KEY, CONF_FROM, CONF_TO, CONF_TIME_START, CONF_TIME_END, DEFAULT_UPDATE_INTERVAL, DEFAULT_TIME_START, DEFAULT_TIME_END
+from .const import DOMAIN, CONF_API_KEY, CONF_FROM, CONF_TO, CONF_TIME_START, CONF_TIME_END, DEFAULT_UPDATE_INTERVAL, DEFAULT_TIME_START, DEFAULT_TIME_END, DEFAULT_OUTSIDE_INTERVAL
 from .coordinator import SncfUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
