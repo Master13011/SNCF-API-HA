@@ -19,8 +19,13 @@ async def async_setup_entry(hass, entry, async_add_entities):
     """Setup SNCF sensors from a config entry."""
     coordinator: SncfUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
 
-    departure = entry.data["from_id"]
-    arrival = entry.data["to_id"]
+    departure = entry.data.get("from_id") or entry.data.get("from")
+    arrival = entry.data.get("to_id") or entry.data.get("to")
+
+    if not departure or not arrival:
+        _LOGGER.error("Configuration invalide : 'from'/'to' manquants dans entry.data")
+        return
+
     departure_name = entry.data.get("from_name", departure)
     arrival_name = entry.data.get("to_name", arrival)
     time_start = entry.options.get("time_start", "00:00")
