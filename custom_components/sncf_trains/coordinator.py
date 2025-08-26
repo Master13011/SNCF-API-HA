@@ -2,8 +2,8 @@ import logging
 from datetime import timedelta
 from homeassistant.util import dt as dt_util
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
-from .const import DEFAULT_UPDATE_INTERVAL, DEFAULT_OUTSIDE_INTERVAL
 from homeassistant.exceptions import ConfigEntryAuthFailed
+from .const import DEFAULT_UPDATE_INTERVAL, DEFAULT_OUTSIDE_INTERVAL
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -30,7 +30,6 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
         self.time_end = time_end
         self.config_entry = config_entry
 
-        # Intervalles par défaut (en minutes)
         self.update_interval_minutes = (
             update_interval if update_interval is not None else DEFAULT_UPDATE_INTERVAL
         )
@@ -53,7 +52,6 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
         dt_start = now.replace(hour=h_start, minute=m_start, second=0, microsecond=0)
         dt_end = now.replace(hour=h_end, minute=m_end, second=0, microsecond=0)
 
-        # Si on est après la fin, on décale le début au lendemain
         if now > dt_end:
             dt_start += timedelta(days=1)
 
@@ -61,37 +59,30 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
 
     def _adjust_update_interval(self):
         """Ajuste la fréquence selon la plage horaire, avec préfenêtre 1h et gestion minuit."""
-        now = dt_util.now()  # datetime "aware" dans le TZ HA
-    
-        # Parse HH:MM
+        now = dt_util.now()
         h_start, m_start = map(int, self.time_start.split(":"))
         h_end, m_end = map(int, self.time_end.split(":"))
-    
-        # Ancrer la plage sur aujourd'hui
+
         start = now.replace(hour=h_start, minute=m_start, second=0, microsecond=0)
         end = now.replace(hour=h_end, minute=m_end, second=0, microsecond=0)
-    
-        # Si la plage traverse minuit (ex: 21:00 -> 01:00), on pousse end au lendemain
+
         if end <= start:
             end += timedelta(days=1)
-    
-        # Pré-fenêtre 1h avant le début
+
         pre_start = start - timedelta(hours=1)
-    
-        # Si on est avant la pré-fenêtre, on "prend" la plage qui a commencé la veille
+
         if now < pre_start:
             start -= timedelta(days=1)
             end -= timedelta(days=1)
             pre_start -= timedelta(days=1)
-    
-        # Zone rapide: de pre_start inclus à end inclus
+
         in_fast_mode = pre_start <= now <= end
-    
+
         interval_minutes = (
             self.update_interval_minutes if in_fast_mode else self.outside_interval_minutes
         )
         new_interval = timedelta(minutes=interval_minutes)
-    
+
         if self.update_interval != new_interval:
             _LOGGER.debug(
                 "Update interval: %s → %s minutes",
@@ -102,10 +93,9 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
 
     async def _async_update_data(self):
         """Récupère les données de l'API SNCF."""
-        # Adapter la fréquence de mise à jour
         self._adjust_update_interval()
-
         datetime_str = self._build_datetime_param()
+
         try:
             journeys = await self.api_client.fetch_journeys(
                 self.departure,
@@ -114,7 +104,6 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
                 count=10,
             )
         except Exception as err:
-            # Si c'est une erreur d'authentification
             if "401" in str(err) or "403" in str(err):
                 raise ConfigEntryAuthFailed("Clé API invalide ou expirée") from err
             _LOGGER.error("Erreur lors de la récupération des trajets SNCF: %s", err)
@@ -124,4 +113,3 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
             raise UpdateFailed("Aucune donnée reçue de l'API SNCF")
 
         return journeys
-
