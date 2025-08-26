@@ -118,14 +118,17 @@ async def async_setup_entry(
     # Remove obsolete child sensors
     entity_registry = async_get_entity_registry(hass)
     prefix = f"sncf_train_{departure}_{arrival}_{entry_suffix}_"
+
     for entity in list(entity_registry.entities.values()):
-        if (
-            entity.domain == "sensor"
-            and entity.unique_id.startswith(prefix)
-            and int(entity.unique_id.split("_")[-2]) >= display_count
-        ):
-            _LOGGER.info("Removing obsolete train sensor: %s", entity.entity_id)
-            entity_registry.async_remove(entity.entity_id)
+        if entity.domain == "sensor" and entity.unique_id.startswith(prefix):
+            try:
+                idx = int(entity.unique_id.split("_")[-2])
+            except (ValueError, IndexError):
+                continue
+            if idx >= display_count:
+                _LOGGER.info("Removing obsolete train sensor: %s", entity.entity_id)
+                entity_registry.async_remove(entity.entity_id)
+
 
     async_add_entities(sensors, True)
 
@@ -219,7 +222,7 @@ class SncfJourneySensor(CoordinatorEntity, SensorEntity):
         }
 
     @property
-    def device_info(self) -> Dict[str, Any]:
+    def device_info(self) -> Optional[Dict[str, Any]]:
         entry_id = getattr(self.coordinator.config_entry, "entry_id", None)
         if not entry_id:
             return None
