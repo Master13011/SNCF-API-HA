@@ -1,7 +1,6 @@
 import pytest
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock
 from datetime import timedelta
-from homeassistant.util import dt as dt_util
 from homeassistant.helpers.update_coordinator import UpdateFailed
 
 from custom_components.sncf_trains.coordinator import SncfUpdateCoordinator
@@ -77,4 +76,5 @@ async def test_coordinator_adjust_interval(hass):
 
     await coordinator._async_update_data()
     assert coordinator.update_interval == timedelta(minutes=30)
+
 
