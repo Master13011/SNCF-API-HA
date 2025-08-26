@@ -2,7 +2,7 @@ import pytest
 from unittest.mock import AsyncMock, patch
 
 from homeassistant import config_entries
-from custom_components.sncf.const import DOMAIN, CONF_API_KEY
+from custom_components.sncf_trains.const import DOMAIN, CONF_API_KEY
 
 
 @pytest.mark.asyncio
@@ -17,7 +17,7 @@ async def test_config_flow_happy_path(hass):
     )
 
     with patch(
-        "custom_components.sncf.config_flow.SncfApiClient", return_value=mock_api
+        "custom_components.sncf_trains.config_flow.SncfApiClient", return_value=mock_api
     ):
         # Step 1: saisie API key
         result = await hass.config_entries.flow.async_init(
@@ -76,7 +76,7 @@ async def test_config_flow_invalid_api_key(hass):
     mock_api.search_stations = AsyncMock(return_value=None)
 
     with patch(
-        "custom_components.sncf.config_flow.SncfApiClient", return_value=mock_api
+        "custom_components.sncf_trains.config_flow.SncfApiClient", return_value=mock_api
     ):
         result = await hass.config_entries.flow.async_init(
             DOMAIN, context={"source": config_entries.SOURCE_USER}
@@ -88,3 +88,4 @@ async def test_config_flow_invalid_api_key(hass):
 
         assert result["type"] == "form"
         assert result["errors"]["base"] == "invalid_api_key"
+
