@@ -15,10 +15,9 @@ Départ / arrivée, retards, durée, mode (TGV, TER…), tout est intégré dans
 
 > Nécessite HACS installé dans Home Assistant
 
-1. Aller dans **HACS → Intégrations → 3 points → Dépôt personnalisé**
-2. Ajouter le dépôt : `https://github.com/Master13011/SNCF-API-HA`
-3. Type : **Intégration**
-4. Rechercher `SNCF Trains`, installer puis redémarrer Home Assistant
+1. Aller dans **HACS**
+2. Cherchez directement : SNCF Trains
+3. Installer puis redémarrer Home Assistant
 
 ### 2. Manuel (sans HACS)
 
@@ -61,7 +60,7 @@ Obtenez votre clé ici : [https://www.digital.sncf.com/startup/api](https://www.
 
 1. Créez un compte ou connectez-vous
 2. Générez une clé API gratuite
-3. Utilisez-la lors de la configuration
+3. Utilisez-la lors de la configuration (limite de 5 000 requêtes par jour)
 
 ---
 
@@ -119,7 +118,7 @@ Obtenez votre clé ici : [https://www.digital.sncf.com/startup/api](https://www.
 
 ## 🛠 Développement
 
-Compatible avec Home Assistant `2024.5+`.
+Compatible avec Home Assistant `2025.8+`.
 
 Structure :
 - `__init__.py` : enregistrement de l’intégration
