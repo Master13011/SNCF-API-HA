@@ -38,9 +38,13 @@ class SncfApiClient:
             async with self._session.get(
                 url, headers=headers, params=params, timeout=ClientTimeout(total=self._timeout)
             ) as resp:
+                if resp.status == 401:
+                    # vrai problème d'auth
+                    raise ConfigEntryAuthFailed("Unauthorized: check your API key.")
                 if resp.status == 429:
-                    _LOGGER.warning("Quota API dépassé (429) sur %s avec params %s", url, params)
-                    raise RuntimeError("Quota API exceeded (429 Too Many Requests)")
+                    # rate-limit => pas une auth failure
+                    _LOGGER.warning("API rate limit (429) on %s with %s", url, params)
+                    raise RuntimeError("SNCF API rate-limited (429)")  # sera géré comme non-critique
                 resp.raise_for_status()
                 data = await resp.json()
                 return data.get("departures", [])
