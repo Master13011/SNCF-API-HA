@@ -60,25 +60,42 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
         return dt_start.strftime("%Y%m%dT%H%M%S")
 
     def _adjust_update_interval(self):
-        """Ajuste la fréquence de mise à jour selon la plage horaire."""
-        now = dt_util.now().time()
+        """Ajuste la fréquence selon la plage horaire, avec préfenêtre 1h et gestion minuit."""
+        now = dt_util.now()  # datetime "aware" dans le TZ HA
+    
+        # Parse HH:MM
         h_start, m_start = map(int, self.time_start.split(":"))
         h_end, m_end = map(int, self.time_end.split(":"))
-        start_time = now.replace(hour=h_start, minute=m_start, second=0, microsecond=0)
-        end_time = now.replace(hour=h_end, minute=m_end, second=0, microsecond=0)
-
-        # Heures de pointe
-        if start_time <= now <= end_time:
-            interval_minutes = self.update_interval_minutes
-        else:
-            interval_minutes = self.outside_interval_minutes
-
-        # Appliquer le nouvel intervalle
+    
+        # Ancrer la plage sur aujourd'hui
+        start = now.replace(hour=h_start, minute=m_start, second=0, microsecond=0)
+        end = now.replace(hour=h_end, minute=m_end, second=0, microsecond=0)
+    
+        # Si la plage traverse minuit (ex: 21:00 -> 01:00), on pousse end au lendemain
+        if end <= start:
+            end += timedelta(days=1)
+    
+        # Pré-fenêtre 1h avant le début
+        pre_start = start - timedelta(hours=1)
+    
+        # Si on est avant la pré-fenêtre, on "prend" la plage qui a commencé la veille
+        if now < pre_start:
+            start -= timedelta(days=1)
+            end -= timedelta(days=1)
+            pre_start -= timedelta(days=1)
+    
+        # Zone rapide: de pre_start inclus à end inclus
+        in_fast_mode = pre_start <= now <= end
+    
+        interval_minutes = (
+            self.update_interval_minutes if in_fast_mode else self.outside_interval_minutes
+        )
         new_interval = timedelta(minutes=interval_minutes)
+    
         if self.update_interval != new_interval:
             _LOGGER.debug(
-                "Changement d'intervalle de mise à jour: %s → %s minutes",
-                self.update_interval.total_seconds() / 60,
+                "Update interval: %s → %s minutes",
+                None if self.update_interval is None else self.update_interval.total_seconds() / 60,
                 interval_minutes,
             )
             self.update_interval = new_interval
@@ -107,3 +124,4 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
             raise UpdateFailed("Aucune donnée reçue de l'API SNCF")
 
         return journeys
+
