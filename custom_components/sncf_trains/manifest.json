@@ -9,11 +9,11 @@
   "dependencies": [],
   "documentation": "https://github.com/Master13011/SNCF-API-HA",
   "iot_class": "cloud_polling",
+  "integration_type": "service",
   "issue_tracker": "https://github.com/Master13011/SNCF-API-HA/issues",
   "loggers": [
     "custom_components.sncf_trains"
   ],
   "requirements": [],
-  "version": "1.0.0",
-  "integration_type": "service"
+  "version": "1.0.0"
 }
