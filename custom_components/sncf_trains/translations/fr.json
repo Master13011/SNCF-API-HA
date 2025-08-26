@@ -42,7 +42,7 @@
       }
     },
     "error": {
-      "no_stations_found": "Aucune station trouvée.",
+      "no_stations": "Aucune station trouvée.",
       "invalid_api_key": "Clé API invalide. Veuillez vérifier et réessayer."
     },
     "abort": {

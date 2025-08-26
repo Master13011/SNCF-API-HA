@@ -2,6 +2,7 @@ import logging
 from datetime import timedelta
 from homeassistant.util import dt as dt_util
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
+from homeassistant.exceptions import ConfigEntryAuthFailed
 from .const import DEFAULT_UPDATE_INTERVAL, DEFAULT_OUTSIDE_INTERVAL
 
 _LOGGER = logging.getLogger(__name__)
@@ -29,7 +30,6 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
         self.time_end = time_end
         self.config_entry = config_entry
 
-        # Intervalles par défaut (en minutes)
         self.update_interval_minutes = (
             update_interval if update_interval is not None else DEFAULT_UPDATE_INTERVAL
         )
@@ -52,42 +52,50 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
         dt_start = now.replace(hour=h_start, minute=m_start, second=0, microsecond=0)
         dt_end = now.replace(hour=h_end, minute=m_end, second=0, microsecond=0)
 
-        # Si on est après la fin, on décale le début au lendemain
         if now > dt_end:
             dt_start += timedelta(days=1)
 
         return dt_start.strftime("%Y%m%dT%H%M%S")
 
     def _adjust_update_interval(self):
-        """Ajuste la fréquence de mise à jour selon la plage horaire."""
-        now = dt_util.now().time()
+        """Ajuste la fréquence selon la plage horaire, avec préfenêtre 1h et gestion minuit."""
+        now = dt_util.now()
         h_start, m_start = map(int, self.time_start.split(":"))
         h_end, m_end = map(int, self.time_end.split(":"))
-        start_time = now.replace(hour=h_start, minute=m_start, second=0, microsecond=0)
-        end_time = now.replace(hour=h_end, minute=m_end, second=0, microsecond=0)
 
-        # Heures de pointe
-        if start_time <= now <= end_time:
-            interval_minutes = self.update_interval_minutes
-        else:
-            interval_minutes = self.outside_interval_minutes
+        start = now.replace(hour=h_start, minute=m_start, second=0, microsecond=0)
+        end = now.replace(hour=h_end, minute=m_end, second=0, microsecond=0)
 
-        # Appliquer le nouvel intervalle
+        if end <= start:
+            end += timedelta(days=1)
+
+        pre_start = start - timedelta(hours=1)
+
+        if now < pre_start:
+            start -= timedelta(days=1)
+            end -= timedelta(days=1)
+            pre_start -= timedelta(days=1)
+
+        in_fast_mode = pre_start <= now <= end
+
+        interval_minutes = (
+            self.update_interval_minutes if in_fast_mode else self.outside_interval_minutes
+        )
         new_interval = timedelta(minutes=interval_minutes)
+
         if self.update_interval != new_interval:
             _LOGGER.debug(
-                "Changement d'intervalle de mise à jour: %s → %s minutes",
-                self.update_interval.total_seconds() / 60,
+                "Update interval: %s → %s minutes",
+                None if self.update_interval is None else self.update_interval.total_seconds() / 60,
                 interval_minutes,
             )
             self.update_interval = new_interval
 
     async def _async_update_data(self):
         """Récupère les données de l'API SNCF."""
-        # Adapter la fréquence de mise à jour
         self._adjust_update_interval()
-
         datetime_str = self._build_datetime_param()
+
         try:
             journeys = await self.api_client.fetch_journeys(
                 self.departure,
@@ -96,9 +104,9 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
                 count=10,
             )
         except Exception as err:
-            _LOGGER.error(
-                "Erreur lors de la récupération des trajets SNCF: %s", err
-            )
+            if "401" in str(err) or "403" in str(err):
+                raise ConfigEntryAuthFailed("Clé API invalide ou expirée") from err
+            _LOGGER.error("Erreur lors de la récupération des trajets SNCF: %s", err)
             raise UpdateFailed(err)
 
         if journeys is None:

@@ -5,7 +5,7 @@ from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .api import SncfApiClient
-from .const import DOMAIN, CONF_API_KEY, CONF_FROM, CONF_TO, CONF_TIME_START, CONF_TIME_END, DEFAULT_UPDATE_INTERVAL, DEFAULT_TIME_START, DEFAULT_TIME_END
+from .const import DOMAIN, CONF_API_KEY, CONF_FROM, CONF_TO, CONF_TIME_START, CONF_TIME_END, DEFAULT_UPDATE_INTERVAL, DEFAULT_TIME_START, DEFAULT_TIME_END, DEFAULT_OUTSIDE_INTERVAL
 from .coordinator import SncfUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -30,6 +30,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     time_start = entry.options.get(CONF_TIME_START, DEFAULT_TIME_START)
     time_end = entry.options.get(CONF_TIME_END, DEFAULT_TIME_END)
     update_interval = entry.options.get("update_interval", DEFAULT_UPDATE_INTERVAL)
+    outside_interval = entry.options.get("outside_interval", DEFAULT_OUTSIDE_INTERVAL)
 
     session = async_get_clientsession(hass)
     api_client = SncfApiClient(session, api_key)
@@ -49,7 +50,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         arrival,
         time_start,
         time_end,
-        update_interval=update_interval
+        update_interval=update_interval,
+        outside_interval=outside_interval
     )
     await coordinator.async_refresh()
     if not coordinator.last_update_success:
