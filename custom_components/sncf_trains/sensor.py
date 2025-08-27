@@ -45,15 +45,12 @@ def format_time(dt_str: Optional[str]) -> str:
     dt = parse_datetime(dt_str)
     return dt.strftime("%d/%m/%Y - %H:%M") if dt else "N/A"
     
-def format_hour(dt_str: Optional[str]) -> str:
-    """Format Navitia datetime string as HH only."""
+def extract_hour_minute(dt_str: Optional[str]) -> Dict[str, Any]:
+    """Extract hour and minute separately from Navitia datetime string."""
     dt = parse_datetime(dt_str)
-    return dt.strftime("%H") if dt else "N/A"
-    
-def format_minute(dt_str: Optional[str]) -> str:
-    """Format Navitia datetime string as MM only."""
-    dt = parse_datetime(dt_str)
-    return dt.strftime("%M") if dt else "N/A"
+    if not dt:
+        return {"hour": None, "minute": None}
+    return {"hour": dt.hour, "minute": dt.minute}
 
 def get_train_num(journey: dict) -> str:
     """Extract the commercial train number."""
@@ -276,16 +273,24 @@ class SncfTrainSensor(CoordinatorEntity, SensorEntity):
         arr_dt = parse_datetime(journey.get("arrival_date_time"))
         base_arr_dt = parse_datetime(section.get("base_arrival_date_time"))
         delay = int((arr_dt - base_arr_dt).total_seconds() / 60) if arr_dt and base_arr_dt else 0
-
+        dep_hm = extract_hour_minute(journey.get("departure_date_time"))
+        arr_hm = extract_hour_minute(journey.get("arrival_date_time"))
+        base_dep_hm = extract_hour_minute(section.get("base_departure_date_time"))
+        base_arr_hm = extract_hour_minute(section.get("base_arrival_date_time"))
+        
         return {
             "departure_time": format_time(journey.get("departure_date_time")),
-            "departure_time_heure": format_hour(journey.get("departure_date_time")),
+            "departure_hour": dep_hm["hour"],
+            "departure_minute": dep_hm["minute"],
             "arrival_time": format_time(journey.get("arrival_date_time")),
-            "arrival_time_heure": format_hour(journey.get("arrival_date_time")), 
+            "arrival_hour": arr_hm["hour"],
+            "arrival_minute": arr_hm["minute"],
             "base_departure_time": format_time(section.get("base_departure_date_time")),
-            "base_departure_time_minute": format_minute(journey.get("base_departure_date_time")),
+            "base_departure_hour": base_dep_hm["hour"],
+            "base_departure_minute": base_dep_hm["minute"],
             "base_arrival_time": format_time(section.get("base_arrival_date_time")),
-            "base_arrival_time_minute": format_minute(journey.get("base_arrival_date_time")),
+            "base_arrival_hour": base_arr_hm["hour"],
+            "base_arrival_minute": base_arr_hm["minute"],
             "delay_minutes": delay,
             "duration_minutes": get_duration(journey),
             "has_delay": delay > 0,
