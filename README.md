@@ -5,7 +5,9 @@
 ![Licence MIT](https://img.shields.io/badge/Licence-MIT-green)
 
 Suivez les horaires des trains SNCF entre deux gares dans Home Assistant, grâce à l’API officielle [SNCF](https://www.digital.sncf.com/startup/api).  
-Départ / arrivée, retards, durée, mode (TGV, TER…), tout est intégré dans une interface configurable et traduite.
+Départ / arrivée, retards, durée, mode (TER…), tout est intégré dans une interface configurable et traduite.
+
+Attention : ne prend pas en compte les trains supprimés
 
 ---
 
