@@ -268,11 +268,6 @@ class SncfTrainSensor(CoordinatorEntity, SensorEntity):
         arr_dt = parse_datetime(journey.get("arrival_date_time"))
         base_arr_dt = parse_datetime(section.get("base_arrival_date_time"))
         delay = int((arr_dt - base_arr_dt).total_seconds() / 60) if arr_dt and base_arr_dt else 0
-        dep_hm = extract_hour_minute(journey.get("departure_date_time"))
-        arr_hm = extract_hour_minute(journey.get("arrival_date_time"))
-        base_dep_hm = extract_hour_minute(section.get("base_departure_date_time"))
-        base_arr_hm = extract_hour_minute(section.get("base_arrival_date_time"))
-        
         return {
             "departure_time": format_time(journey.get("departure_date_time")),
             "arrival_time": format_time(journey.get("arrival_date_time")),
