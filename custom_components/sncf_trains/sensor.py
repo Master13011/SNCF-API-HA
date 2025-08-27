@@ -31,12 +31,14 @@ _LOGGER = logging.getLogger(__name__)
 # --- Helpers ---
 
 def parse_datetime(dt_str: Optional[str]) -> Optional[datetime]:
-    """Try parsing Navitia datetime to local Home Assistant time."""
     if not dt_str:
         return None
     try:
         naive = datetime.strptime(dt_str, "%Y%m%dT%H%M%S")
-        return dt_util.as_local(naive)
+        # Si dt_str est en UTC, on doit mettre naive comme UTC avant conversion locale
+        from homeassistant.util.dt import UTC
+        aware_utc = naive.replace(tzinfo=UTC)
+        return dt_util.as_local(aware_utc)
     except Exception:
         return None
 
@@ -45,15 +47,6 @@ def format_time(dt_str: Optional[str]) -> str:
     dt = parse_datetime(dt_str)
     return dt.strftime("%d/%m/%Y - %H:%M") if dt else "N/A"
     
-def extract_hour_minute(dt_str: Optional[str]) -> Dict[str, Any]:
-    dt = parse_datetime(dt_str)
-    if not dt:
-        return {"hour": None, "minute": None}
-    return {
-        "hour": dt.strftime("%H"),  # "08"
-        "minute": dt.strftime("%M") # "05"
-    }
-
 def get_train_num(journey: dict) -> str:
     """Extract the commercial train number."""
     trip_num = journey.get("trip_short_name")
@@ -282,17 +275,9 @@ class SncfTrainSensor(CoordinatorEntity, SensorEntity):
         
         return {
             "departure_time": format_time(journey.get("departure_date_time")),
-            "departure_hour": dep_hm["hour"],
-            "departure_minute": dep_hm["minute"],
             "arrival_time": format_time(journey.get("arrival_date_time")),
-            "arrival_hour": arr_hm["hour"],
-            "arrival_minute": arr_hm["minute"],
             "base_departure_time": format_time(section.get("base_departure_date_time")),
-            "base_departure_hour": base_dep_hm["hour"],
-            "base_departure_minute": base_dep_hm["minute"],
             "base_arrival_time": format_time(section.get("base_arrival_date_time")),
-            "base_arrival_hour": base_arr_hm["hour"],
-            "base_arrival_minute": base_arr_hm["minute"],
             "delay_minutes": delay,
             "duration_minutes": get_duration(journey),
             "has_delay": delay > 0,
