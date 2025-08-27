@@ -176,15 +176,14 @@ class SncfJourneySensor(CoordinatorEntity, SensorEntity):
                 "next_trains": [],
                 "delay_minutes": [],
                 "has_delay": False,
-                "next_delay_minutes": None,
                 "trains_summary": [],
             }
         summary = []
         next_trains = []
         delays = []
-        next_delay = None
+        overall_has_delay = False
 
-        for i, j in enumerate(journeys):
+        for j in journeys:
             section = j.get("sections", [{}])[0]
             base_dep = format_time(section.get("base_departure_date_time"))
             base_arr = format_time(section.get("base_arrival_date_time"))
@@ -192,8 +191,8 @@ class SncfJourneySensor(CoordinatorEntity, SensorEntity):
             base_arrival = parse_datetime(section.get("base_arrival_date_time"))
             delay = int((arr_time - base_arrival).total_seconds() / 60) if arr_time and base_arrival else 0
             delays.append(delay)
-            if i == 0:
-                next_delay = delay
+            if delay > 0:
+                overall_has_delay = True
             next_trains.append(format_time(j.get("departure_date_time")))
             summary.append({
                 "departure_time": format_time(j.get("departure_date_time")),
@@ -209,18 +208,17 @@ class SncfJourneySensor(CoordinatorEntity, SensorEntity):
                 "delay_minutes": delay,
                 "has_delay": delay > 0,
             })
-
+    
         return {
             "next_trains": next_trains,
             "delay_minutes": delays,
-            "has_delay": bool(next_delay and next_delay > 0),
-            "next_delay_minutes": next_delay,
+            "has_delay": overall_has_delay,
             "trains_summary": summary,
             "time_window": f"{self.start_time} - {self.end_time}",
             "update_interval": self.update_interval,
             "outside_interval": self.outside_interval,
         }
-
+        
     @property
     def device_info(self) -> Optional[Dict[str, Any]]:
         entry_id = getattr(self.coordinator.config_entry, "entry_id", None)
@@ -254,7 +252,9 @@ class SncfTrainSensor(CoordinatorEntity, SensorEntity):
         journeys = self.main_sensor._journeys
         if not journeys or len(journeys) <= self.train_index:
             return None
-        return parse_datetime(journeys[self.train_index].get("departure_date_time"))
+    
+        section = journeys[self.train_index].get("sections", [{}])[0]
+        return parse_datetime(section.get("base_departure_date_time"))
 
     @property
     def extra_state_attributes(self) -> Dict[str, Any]:
