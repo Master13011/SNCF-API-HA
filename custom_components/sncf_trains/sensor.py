@@ -44,6 +44,11 @@ def format_time(dt_str: Optional[str]) -> str:
     """Format a Navitia datetime string as dd/mm/YYYY - HH:MM."""
     dt = parse_datetime(dt_str)
     return dt.strftime("%d/%m/%Y - %H:%M") if dt else "N/A"
+    
+def format_hour_minute(dt_str: Optional[str]) -> str:
+    """Format Navitia datetime string as HH:MM only."""
+    dt = parse_datetime(dt_str)
+    return dt.strftime("%H:%M") if dt else "N/A"
 
 def get_train_num(journey: dict) -> str:
     """Extract the commercial train number."""
@@ -269,9 +274,13 @@ class SncfTrainSensor(CoordinatorEntity, SensorEntity):
 
         return {
             "departure_time": format_time(journey.get("departure_date_time")),
+            "departure_time_short": format_hour_minute(journey.get("departure_date_time")),
             "arrival_time": format_time(journey.get("arrival_date_time")),
+            "arrival_time_short": format_hour_minute(journey.get("arrival_date_time")), 
             "base_departure_time": format_time(section.get("base_departure_date_time")),
+            "base_departure_time_short": format_hour_minute(journey.get("base_departure_date_time")),
             "base_arrival_time": format_time(section.get("base_arrival_date_time")),
+            "base_arrival_time_short": format_hour_minute(journey.get("base_arrival_date_time")),
             "delay_minutes": delay,
             "duration_minutes": get_duration(journey),
             "has_delay": delay > 0,
