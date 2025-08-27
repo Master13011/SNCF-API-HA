@@ -34,13 +34,14 @@ def parse_datetime(dt_str: Optional[str]) -> Optional[datetime]:
     if not dt_str:
         return None
     try:
-        naive = datetime.strptime(dt_str, "%Y%m%dT%H%M%S")
-        # Si dt_str est en UTC, on doit mettre naive comme UTC avant conversion locale
-        from homeassistant.util.dt import UTC
-        aware_utc = naive.replace(tzinfo=UTC)
-        return dt_util.as_local(aware_utc)
+        dt = dt_util.parse_datetime(dt_str)  # parse with timezone info if possible
+        return dt_util.as_local(dt) if dt else None  # convert to local timezone
     except Exception:
         return None
+
+def format_time(dt_str: Optional[str]) -> str:
+    dt = parse_datetime(dt_str)
+    return dt.strftime("%d/%m/%Y - %H:%M") if dt else "N/A"
 
 def format_time(dt_str: Optional[str]) -> str:
     """Format a Navitia datetime string as dd/mm/YYYY - HH:MM."""
