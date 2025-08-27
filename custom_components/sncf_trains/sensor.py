@@ -46,11 +46,13 @@ def format_time(dt_str: Optional[str]) -> str:
     return dt.strftime("%d/%m/%Y - %H:%M") if dt else "N/A"
     
 def extract_hour_minute(dt_str: Optional[str]) -> Dict[str, Any]:
-    """Extract hour and minute separately from Navitia datetime string."""
     dt = parse_datetime(dt_str)
     if not dt:
         return {"hour": None, "minute": None}
-    return {"hour": dt.hour, "minute": dt.minute}
+    return {
+        "hour": dt.strftime("%H"),  # "08"
+        "minute": dt.strftime("%M") # "05"
+    }
 
 def get_train_num(journey: dict) -> str:
     """Extract the commercial train number."""
