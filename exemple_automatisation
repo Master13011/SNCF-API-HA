@@ -1,0 +1,52 @@
+alias: Alerte Trains SNCF
+triggers:
+  - entity_id:
+      - sensor.sncf_XXX
+    attribute: has_delay
+    from: "false"
+    to: "true"
+    trigger: state
+actions:
+  - choose:
+      - conditions:
+          - condition: or
+            conditions:
+              - condition: template
+                value_template: >
+                  {% set dep_time =
+                  state_attr('sensor.sncf_train_4_XXX','departure_time')
+                  %} {% set hm = dep_time.split(' - ')[1] %} {{ hm != '07:54' }}
+              - condition: state
+                entity_id: >-
+                  sensor.sncf_train_4_XXX
+                attribute: has_delay
+                state: "true"
+        sequence:
+          - data:
+              title: Train en retard ou supprimé
+              message: |
+                Le train de 07h54 n'est pas à l'heure. Départ prévu: {{
+                  state_attr('sensor.sncf_train_4_XXX','departure_time')
+                }}
+            action: notify.notify
+      - conditions:
+          - condition: or
+            conditions:
+              - condition: template
+                value_template: >
+                  {% set dep_time =
+                  state_attr('sensor.sncf_train_5_XXX','departure_time')
+                  %} {% set hm = dep_time.split(' - ')[1] %} {{ hm != '08:07' }}
+              - condition: state
+                entity_id: >-
+                  sensor.sncf_train_5_XXX
+                attribute: has_delay
+                state: "true"
+        sequence:
+          - data:
+              title: Train en retard ou supprimé
+              message: |
+                Le train de 08h07 n'est pas à l'heure. Départ prévu: {{
+                  state_attr('sensor.sncf_train_5_nXXX','departure_time')
+                }}
+            action: notify.notify
