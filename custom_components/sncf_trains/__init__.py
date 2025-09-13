@@ -1,23 +1,43 @@
+"""The SNCF Train integration."""
+
 import logging
+
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryNotReady
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .api import SncfApiClient
-from .const import DOMAIN, CONF_API_KEY, CONF_FROM, CONF_TO, CONF_TIME_START, CONF_TIME_END, DEFAULT_UPDATE_INTERVAL, DEFAULT_TIME_START, DEFAULT_TIME_END, DEFAULT_OUTSIDE_INTERVAL
+from .const import (
+    CONF_API_KEY,
+    CONF_FROM,
+    CONF_TIME_END,
+    CONF_TIME_START,
+    CONF_TO,
+    DEFAULT_OUTSIDE_INTERVAL,
+    DEFAULT_TIME_END,
+    DEFAULT_TIME_START,
+    DEFAULT_UPDATE_INTERVAL,
+    DOMAIN,
+)
 from .coordinator import SncfUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Set up SNCF Train as config entry."""
     if not entry.options:
-        hass.config_entries.async_update_entry(entry, options={
-            CONF_TIME_START: entry.data.get(CONF_TIME_START, DEFAULT_TIME_START),
-            CONF_TIME_END: entry.data.get(CONF_TIME_END, DEFAULT_TIME_END),
-            "update_interval": entry.data.get("update_interval", DEFAULT_UPDATE_INTERVAL),
-        })
+        hass.config_entries.async_update_entry(
+            entry,
+            options={
+                CONF_TIME_START: entry.data.get(CONF_TIME_START, DEFAULT_TIME_START),
+                CONF_TIME_END: entry.data.get(CONF_TIME_END, DEFAULT_TIME_END),
+                "update_interval": entry.data.get(
+                    "update_interval", DEFAULT_UPDATE_INTERVAL
+                ),
+            },
+        )
 
     api_key = entry.options.get(CONF_API_KEY) or entry.data.get(CONF_API_KEY)
     departure = entry.data[CONF_FROM]
@@ -51,7 +71,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         time_start,
         time_end,
         update_interval=update_interval,
-        outside_interval=outside_interval
+        outside_interval=outside_interval,
     )
     await coordinator.async_refresh()
     if not coordinator.last_update_success:
@@ -68,6 +88,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Unload a config entry."""
     unload_ok = await hass.config_entries.async_unload_platforms(entry, ["sensor"])
     if unload_ok:
         hass.data[DOMAIN].pop(entry.entry_id, None)
@@ -75,6 +96,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 
 async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Reload entry if change option."""
     await hass.config_entries.async_reload(entry.entry_id)
 
 
