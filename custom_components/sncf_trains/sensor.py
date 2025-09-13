@@ -2,13 +2,13 @@ import logging
 from typing import Any
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceEntryType
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.entity_registry import async_get as async_get_entity_registry
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
+from . import SncfDataConfigEntry
 from .const import ATTRIBUTION, DOMAIN
 from .coordinator import SncfUpdateCoordinator
 from .helpers import format_time, get_duration, get_train_num, parse_datetime
@@ -17,7 +17,9 @@ _LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(
-    hass: HomeAssistant, entry: ConfigEntry, async_add_entities: AddEntitiesCallback
+    hass: HomeAssistant,
+    entry: SncfDataConfigEntry,
+    async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up SNCF entities from a config entry."""
 
@@ -65,16 +67,18 @@ class SncfJourneySensor(CoordinatorEntity[SncfUpdateCoordinator], SensorEntity):
         """Initialize."""
         super().__init__(coordinator)
         journeys = coordinator.data
+        dep_name = coordinator.departure_name
+        arr_name = coordinator.arrival_name
+
         self.departure = coordinator.departure
         self.arrival = coordinator.arrival
-        self.dep_name = coordinator.departure_name
-        self.arr_name = coordinator.arrival_name
+
         self.start_time = coordinator.time_start
         self.end_time = coordinator.time_end
         self.update_interval = coordinator.update_interval_minutes
         self.outside_interval = coordinator.outside_interval_minutes
 
-        self._attr_name = f"SNCF: {self.dep_name} → {self.arr_name}"
+        self._attr_name = f"SNCF {dep_name} → {arr_name}"
         self._attr_icon = "mdi:train"
         self._attr_native_unit_of_measurement = "trajets"
         self._attr_unique_id = (
@@ -82,7 +86,7 @@ class SncfJourneySensor(CoordinatorEntity[SncfUpdateCoordinator], SensorEntity):
         )
         self._attr_device_info = {
             "identifiers": {(DOMAIN, coordinator.entry.entry_id)},
-            "name": f"SNCF {coordinator.departure_name} → {coordinator.arrival_name}",
+            "name": f"SNCF {dep_name} → {arr_name}",
             "manufacturer": "Master13011",
             "model": "API",
             "entry_type": DeviceEntryType.SERVICE,
@@ -171,11 +175,14 @@ class SncfTrainSensor(CoordinatorEntity[SncfUpdateCoordinator], SensorEntity):
         """Initialize the sensor."""
         super().__init__(coordinator)
         journeys = coordinator.data
+        dep_name = coordinator.departure_name
+        arr_name = coordinator.arrival_name
+
         self.train_index = train_index
         self.departure = coordinator.departure
         self.arrival = coordinator.arrival
 
-        self._attr_name = f"SNCF Train #{train_index + 1} ({coordinator.departure_name} → {coordinator.arrival_name})"
+        self._attr_name = f"SNCF Train #{train_index + 1} ({dep_name} → {arr_name})"
         self._attr_icon = "mdi:train"
         self._attr_unique_id = f"sncf_train_{coordinator.departure}_{coordinator.arrival}_{train_index}_{coordinator.entry.entry_id}"
         self._attr_attribution = ATTRIBUTION
@@ -183,7 +190,7 @@ class SncfTrainSensor(CoordinatorEntity[SncfUpdateCoordinator], SensorEntity):
         self._attr_extra_state_attributes = self._extra_attributes(journeys)
         self._attr_device_info = {
             "identifiers": {(DOMAIN, coordinator.entry.entry_id)},
-            "name": f"SNCF {coordinator.departure_name} → {coordinator.arrival_name}",
+            "name": f"SNCF {dep_name} → {arr_name}",
             "manufacturer": "Master13011",
             "model": "API",
             "entry_type": DeviceEntryType.SERVICE,
