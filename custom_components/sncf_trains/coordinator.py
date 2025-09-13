@@ -2,7 +2,8 @@
 
 import logging
 from datetime import timedelta
-from typing import Optional
+from itertools import count
+from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -23,6 +24,7 @@ from .const import (
     DEFAULT_OUTSIDE_INTERVAL,
     DEFAULT_TIME_END,
     DEFAULT_TIME_START,
+    DEFAULT_TRAIN_COUNT,
     DEFAULT_UPDATE_INTERVAL,
 )
 
@@ -46,6 +48,9 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
         self.outside_interval_minutes = entry.options.get(
             CONF_OUTSIDE_INTERVAL, DEFAULT_OUTSIDE_INTERVAL
         )
+        self.train_count = entry.options.get("train_count", DEFAULT_TRAIN_COUNT)
+        self.departure_name = entry.data.get("departure_name", self.departure)
+        self.arrival_name = entry.data.get("arrival_name", self.arrival)
 
         super().__init__(
             hass,
@@ -131,23 +136,26 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
             )
             self.update_interval = new_interval
 
-    async def _async_update_data(self) -> Optional[list[dict]]:
+    async def _async_update_data(self) -> dict[str, Any]:
         """Récupère les données de l'API SNCF."""
         self._adjust_update_interval()
         datetime_str = self._build_datetime_param()
 
         try:
             journeys = await self.api_client.fetch_journeys(
-                self.departure,
-                self.arrival,
-                datetime_str,
-                count=10,
+                self.departure, self.arrival, datetime_str, count=10
             )
         except Exception as err:
             _LOGGER.error("Erreur lors de la récupération des trajets SNCF: %s", err)
             raise UpdateFailed(err)
 
-        if journeys is None:
+        if journeys is None or not isinstance(journeys, list):
             raise UpdateFailed("Aucune donnée reçue de l'API SNCF")
 
-        return journeys
+        i = count(0)
+
+        return {
+            f"journey_{next(i)}": j
+            for j in journeys
+            if isinstance(j, dict) and len(j.get("sections", [])) == 1
+        }
