@@ -61,7 +61,7 @@ class SncfJourneySensor(CoordinatorEntity[SncfUpdateCoordinator], SensorEntity):
 
     _attr_has_entity_name = True
 
-    def __init__(self, coordinator: SncfUpdateCoordinator):
+    def __init__(self, coordinator: SncfUpdateCoordinator) -> None:
         """Initialize."""
         super().__init__(coordinator)
         journeys = coordinator.data
