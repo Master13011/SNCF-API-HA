@@ -95,7 +95,7 @@ class SncfJourneySensor(CoordinatorEntity[SncfUpdateCoordinator], SensorEntity):
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
         journeys = self.coordinator.data
-        self._attr_native_value = len(journeys) if journeys else None
+        self._attr_native_value = len(journeys)
         self._attr_extra_state_attributes = self._extra_attributes(journeys)
         self.async_write_ha_state()
 
