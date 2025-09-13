@@ -19,7 +19,7 @@ from .coordinator import SncfUpdateCoordinator
 
 type SncfDataConfigEntry = ConfigEntry[SncfUpdateCoordinator]
 
-PLATFORMS: list[Platform] = [Platform.SENSOR]
+PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.CALENDAR]
 _LOGGER = logging.getLogger(__name__)
 
 
