@@ -1,5 +1,5 @@
-from datetime import datetime
 import logging
+from datetime import datetime
 from typing import Any
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
@@ -34,7 +34,7 @@ async def async_setup_entry(
 ) -> None:
     """Set up SNCF entities from a config entry."""
 
-    coordinator: SncfUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator: SncfUpdateCoordinator = entry.runtime_data
 
     departure = entry.data.get(CONF_FROM)
     arrival = entry.data.get(CONF_TO)

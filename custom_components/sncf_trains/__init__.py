@@ -4,17 +4,11 @@ import logging
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryNotReady
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
-from .api import SncfApiClient
 from .const import (
     CONF_API_KEY,
-    CONF_FROM,
     CONF_TIME_END,
     CONF_TIME_START,
-    CONF_TO,
-    DEFAULT_OUTSIDE_INTERVAL,
     DEFAULT_TIME_END,
     DEFAULT_TIME_START,
     DEFAULT_UPDATE_INTERVAL,
@@ -40,48 +34,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         )
 
     api_key = entry.options.get(CONF_API_KEY) or entry.data.get(CONF_API_KEY)
-    departure = entry.data[CONF_FROM]
-    arrival = entry.data[CONF_TO]
-
     if not api_key:
         _LOGGER.error("API key not found in options")
         return False
 
-    time_start = entry.options.get(CONF_TIME_START, DEFAULT_TIME_START)
-    time_end = entry.options.get(CONF_TIME_END, DEFAULT_TIME_END)
-    update_interval = entry.options.get("update_interval", DEFAULT_UPDATE_INTERVAL)
-    outside_interval = entry.options.get("outside_interval", DEFAULT_OUTSIDE_INTERVAL)
-
-    session = async_get_clientsession(hass)
-    api_client = SncfApiClient(session, api_key)
-
-    try:
-        departures = await api_client.fetch_departures(stop_id=departure, max_results=1)
-        if departures is None:
-            raise ConfigEntryNotReady("Failed to fetch departures from SNCF API")
-    except Exception as err:
-        _LOGGER.error("Error connecting to SNCF API: %s", err)
-        raise ConfigEntryNotReady from err
-
-    coordinator = SncfUpdateCoordinator(
-        hass,
-        api_client,
-        departure,
-        arrival,
-        time_start,
-        time_end,
-        update_interval=update_interval,
-        outside_interval=outside_interval,
-    )
-    await coordinator.async_refresh()
-    if not coordinator.last_update_success:
-        raise ConfigEntryNotReady("Initial data fetch failed")
-
-    hass.data.setdefault(DOMAIN, {})
-    hass.data[DOMAIN][entry.entry_id] = coordinator
+    coordinator = SncfUpdateCoordinator(hass, entry)
+    await coordinator.async_config_entry_first_refresh()
+    entry.runtime_data = coordinator
 
     entry.async_on_unload(entry.add_update_listener(async_reload_entry))
-
     await hass.config_entries.async_forward_entry_setups(entry, ["sensor"])
 
     return True

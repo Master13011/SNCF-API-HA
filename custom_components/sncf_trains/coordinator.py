@@ -1,9 +1,28 @@
+"""Data Update Coordinator."""
+
 import logging
 from datetime import timedelta
-from homeassistant.util import dt as dt_util
+from typing import Optional
+
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
+from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
-from homeassistant.exceptions import ConfigEntryAuthFailed
-from .const import DEFAULT_UPDATE_INTERVAL, DEFAULT_OUTSIDE_INTERVAL
+from homeassistant.util import dt as dt_util
+
+from .api import SncfApiClient
+from .const import (
+    CONF_API_KEY,
+    CONF_FROM,
+    CONF_TIME_END,
+    CONF_TIME_START,
+    CONF_TO,
+    DEFAULT_OUTSIDE_INTERVAL,
+    DEFAULT_TIME_END,
+    DEFAULT_TIME_START,
+    DEFAULT_UPDATE_INTERVAL,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -11,38 +30,54 @@ _LOGGER = logging.getLogger(__name__)
 class SncfUpdateCoordinator(DataUpdateCoordinator):
     """Coordonnateur pour récupérer les données des trajets SNCF."""
 
-    def __init__(
-        self,
-        hass,
-        api_client,
-        departure,
-        arrival,
-        time_start,
-        time_end,
-        update_interval=None,
-        outside_interval=None,
-        config_entry=None,
-    ):
-        self.api_client = api_client
-        self.departure = departure
-        self.arrival = arrival
-        self.time_start = time_start
-        self.time_end = time_end
-        self.config_entry = config_entry
-
-        self.update_interval_minutes = (
-            update_interval if update_interval is not None else DEFAULT_UPDATE_INTERVAL
+    def __init__(self, hass: HomeAssistant, entry: ConfigEntry):
+        """Initialisation."""
+        self.entry = entry
+        self.api_client = None
+        self.departure = entry.data[CONF_FROM]
+        self.arrival = entry.data[CONF_TO]
+        self.time_start = entry.options.get(CONF_TIME_START, DEFAULT_TIME_START)
+        self.time_end = entry.options.get(CONF_TIME_END, DEFAULT_TIME_END)
+        self.update_interval_minutes = entry.options.get(
+            "update_interval", DEFAULT_UPDATE_INTERVAL
         )
-        self.outside_interval_minutes = (
-            outside_interval if outside_interval is not None else DEFAULT_OUTSIDE_INTERVAL
+        self.outside_interval_minutes = entry.options.get(
+            "outside_interval", DEFAULT_OUTSIDE_INTERVAL
         )
 
         super().__init__(
             hass,
             _LOGGER,
-            name=f"SNCF Train Journeys {departure}→{arrival}",
+            name=f"SNCF Train Journeys {self.departure}→{self.arrival}",
             update_interval=timedelta(minutes=self.update_interval_minutes),
         )
+
+    async def _async_setup(self) -> None:
+        """Paramétrage du coordinateur."""
+        api_key = self.entry.options.get(CONF_API_KEY) or self.entry.data.get(
+            CONF_API_KEY, ""
+        )
+        departure = self.entry.data[CONF_FROM]
+
+        try:
+            session = async_get_clientsession(self.hass)
+            self.api_client = SncfApiClient(session, api_key)
+
+        except Exception as err:
+            if "401" in str(err) or "403" in str(err):
+                raise ConfigEntryAuthFailed("Clé API invalide ou expirée") from err
+            _LOGGER.error("Erreur lors de la récupération des trajets SNCF: %s", err)
+            raise UpdateFailed(err)
+
+        try:
+            departures = await self.api_client.fetch_departures(
+                stop_id=departure, max_results=1
+            )
+            if departures is None:
+                raise ConfigEntryNotReady("Failed to fetch departures from SNCF API")
+        except Exception as err:
+            _LOGGER.error("Error connecting to SNCF API: %s", err)
+            raise ConfigEntryNotReady from err
 
     def _build_datetime_param(self) -> str:
         """Construit le paramètre datetime pour l'API."""
@@ -79,19 +114,23 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
         in_fast_mode = pre_start <= now <= end
 
         interval_minutes = (
-            self.update_interval_minutes if in_fast_mode else self.outside_interval_minutes
+            self.update_interval_minutes
+            if in_fast_mode
+            else self.outside_interval_minutes
         )
         new_interval = timedelta(minutes=interval_minutes)
 
         if self.update_interval != new_interval:
             _LOGGER.debug(
                 "Update interval: %s → %s minutes",
-                None if self.update_interval is None else self.update_interval.total_seconds() / 60,
+                None
+                if self.update_interval is None
+                else self.update_interval.total_seconds() / 60,
                 interval_minutes,
             )
             self.update_interval = new_interval
 
-    async def _async_update_data(self):
+    async def _async_update_data(self) -> Optional[list[dict]]:
         """Récupère les données de l'API SNCF."""
         self._adjust_update_interval()
         datetime_str = self._build_datetime_param()
@@ -104,8 +143,6 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
                 count=10,
             )
         except Exception as err:
-            if "401" in str(err) or "403" in str(err):
-                raise ConfigEntryAuthFailed("Clé API invalide ou expirée") from err
             _LOGGER.error("Erreur lors de la récupération des trajets SNCF: %s", err)
             raise UpdateFailed(err)
 
