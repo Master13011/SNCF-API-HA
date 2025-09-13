@@ -16,10 +16,12 @@ from .const import (
 )
 from .coordinator import SncfUpdateCoordinator
 
+type SncfDataConfigEntry = ConfigEntry[SncfUpdateCoordinator]
+
 _LOGGER = logging.getLogger(__name__)
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+async def async_setup_entry(hass: HomeAssistant, entry: SncfDataConfigEntry) -> bool:
     """Set up SNCF Train as config entry."""
     if not entry.options:
         hass.config_entries.async_update_entry(
@@ -48,7 +50,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return True
 
 
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+async def async_unload_entry(hass: HomeAssistant, entry: SncfDataConfigEntry) -> bool:
     """Unload a config entry."""
     unload_ok = await hass.config_entries.async_unload_platforms(entry, ["sensor"])
     if unload_ok:
@@ -56,12 +58,12 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return unload_ok
 
 
-async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+async def async_reload_entry(hass: HomeAssistant, entry: SncfDataConfigEntry) -> None:
     """Reload entry if change option."""
     await hass.config_entries.async_reload(entry.entry_id)
 
 
-async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+async def async_migrate_entry(hass: HomeAssistant, entry: SncfDataConfigEntry) -> bool:
     """Migrate old config entries to move API key to options."""
     data = dict(entry.data)
     options = dict(entry.options)
