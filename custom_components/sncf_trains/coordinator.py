@@ -15,9 +15,11 @@ from .api import SncfApiClient
 from .const import (
     CONF_API_KEY,
     CONF_FROM,
+    CONF_OUTSIDE_INTERVAL,
     CONF_TIME_END,
     CONF_TIME_START,
     CONF_TO,
+    CONF_UPDATE_INTERVAL,
     DEFAULT_OUTSIDE_INTERVAL,
     DEFAULT_TIME_END,
     DEFAULT_TIME_START,
@@ -39,10 +41,10 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
         self.time_start = entry.options.get(CONF_TIME_START, DEFAULT_TIME_START)
         self.time_end = entry.options.get(CONF_TIME_END, DEFAULT_TIME_END)
         self.update_interval_minutes = entry.options.get(
-            "update_interval", DEFAULT_UPDATE_INTERVAL
+            CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL
         )
         self.outside_interval_minutes = entry.options.get(
-            "outside_interval", DEFAULT_OUTSIDE_INTERVAL
+            CONF_OUTSIDE_INTERVAL, DEFAULT_OUTSIDE_INTERVAL
         )
 
         super().__init__(

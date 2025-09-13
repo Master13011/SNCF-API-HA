@@ -1,4 +1,3 @@
-
 DOMAIN = "sncf_trains"
 
 CONF_API_KEY = "api_key"
@@ -6,6 +5,8 @@ CONF_FROM = "from"
 CONF_TO = "to"
 CONF_TIME_START = "time_start"
 CONF_TIME_END = "time_end"
+CONF_UPDATE_INTERVAL = "update_interval"
+CONF_OUTSIDE_INTERVAL = "outside_interval"
 PLATFORMS = ["sensor"]
 
 DEFAULT_UPDATE_INTERVAL = 2  # minutes
