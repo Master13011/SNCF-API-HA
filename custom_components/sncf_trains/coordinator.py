@@ -59,7 +59,6 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
         api_key = self.entry.options.get(CONF_API_KEY) or self.entry.data.get(
             CONF_API_KEY, ""
         )
-        departure = self.entry.data[CONF_FROM]
 
         try:
             session = async_get_clientsession(self.hass)
@@ -73,7 +72,7 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
 
         try:
             departures = await self.api_client.fetch_departures(
-                stop_id=departure, max_results=1
+                stop_id=self.departure, max_results=1
             )
             if departures is None:
                 raise ConfigEntryNotReady("Failed to fetch departures from SNCF API")
