@@ -6,20 +6,13 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_registry import Platform
 
-from .const import (
-    CONF_API_KEY,
-    CONF_TIME_END,
-    CONF_TIME_START,
-    DEFAULT_TIME_END,
-    DEFAULT_TIME_START,
-    DEFAULT_UPDATE_INTERVAL,
-    DOMAIN,
-)
+from .const import CONF_API_KEY, CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL
 from .coordinator import SncfUpdateCoordinator
 
 type SncfDataConfigEntry = ConfigEntry[SncfUpdateCoordinator]
 
-PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.CALENDAR]
+# PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.CALENDAR]
+PLATFORMS: list[Platform] = [Platform.SENSOR]
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -29,11 +22,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: SncfDataConfigEntry) -> 
         hass.config_entries.async_update_entry(
             entry,
             options={
-                CONF_TIME_START: entry.data.get(CONF_TIME_START, DEFAULT_TIME_START),
-                CONF_TIME_END: entry.data.get(CONF_TIME_END, DEFAULT_TIME_END),
-                "update_interval": entry.data.get(
-                    "update_interval", DEFAULT_UPDATE_INTERVAL
-                ),
+                CONF_UPDATE_INTERVAL: entry.data.get(
+                    CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL
+                )
             },
         )
 
@@ -54,9 +45,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: SncfDataConfigEntry) -> 
 
 async def async_unload_entry(hass: HomeAssistant, entry: SncfDataConfigEntry) -> bool:
     """Unload a config entry."""
-    unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
-    if unload_ok:
-        hass.data[DOMAIN].pop(entry.entry_id, None)
+    if unload_ok := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
+        entry.runtime_data.listener()
     return unload_ok
 
 
