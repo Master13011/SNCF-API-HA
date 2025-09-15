@@ -8,37 +8,6 @@
         "data": {
           "api_key": "Clé API"
         }
-      },
-      "departure_city": {
-        "title": "Ville de départ",
-        "data": {
-          "departure_city": "Ville de départ"
-        }
-      },
-      "departure_station": {
-        "title": "Gare de départ",
-        "data": {
-          "departure_station": "Sélectionnez la gare"
-        }
-      },
-      "arrival_city": {
-        "title": "Ville d'arrivée",
-        "data": {
-          "arrival_city": "Ville d'arrivée"
-        }
-      },
-      "arrival_station": {
-        "title": "Gare d'arrivée",
-        "data": {
-          "arrival_station": "Sélectionnez la gare"
-        }
-      },
-      "time_range": {
-        "title": "Tranche horaire",
-        "data": {
-          "time_start": "Heure de début",
-          "time_end": "Heure de fin"
-        }
       }
     },
     "error": {
@@ -58,6 +27,49 @@
       "train_count": "Nombre de trains affichés",
       "time_start": "Heure de début de recherche",
       "time_end": "Heure de fin de recherche"
+    }
+  },
+  "config_subentries": {
+    "train": {
+      "initiate_flow": {
+        "user": "Ajouter un train",
+        "reconfigure": "Reconfigurer un train"
+      },
+      "entry_type": "Train",
+      "step": {
+        "departure_city": {
+          "title": "Choisissez la ville de départ",
+          "data": {
+            "departure_city": "Nom de la ville"
+          }
+        },
+        "departure_station": {
+          "title": "Choisissez la gare de départ",
+          "data": {
+            "departure_station": "Nom de la gare"
+          }
+        },
+        "arrival_city": {
+          "title": "Choisissez la ville d'arrivée",
+          "data": {
+            "arrival_city": "Nom de la ville"
+          }
+        },
+        "arrival_station": {
+          "title": "Choisissez la gare d'arrivée",
+          "data": {
+            "arrival_station": "Nom de la gare"
+          }
+        },
+        "time_range": {
+          "title": "Choisissez la plage horaire",
+          "data": {
+            "time_start": "Heure de départ",
+            "time_end": "Heure d'arrivé",
+            "train_count": "Nombre de trains"
+          }
+        }
+      }
     }
   }
 }

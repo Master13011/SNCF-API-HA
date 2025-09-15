@@ -4,21 +4,6 @@
       "user": {
         "title": "Entrez la clé API SNCF"
       },
-      "departure_city": {
-        "title": "Choisissez la ville de départ"
-      },
-      "departure_station": {
-        "title": "Choisissez la gare de départ"
-      },
-      "arrival_city": {
-        "title": "Choisissez la ville d'arrivée"
-      },
-      "arrival_station": {
-        "title": "Choisissez la gare d'arrivée"
-      },
-      "time_range": {
-        "title": "Choisissez la plage horaire"
-      },
       "options": {
         "title": "Options",
         "description": "Définissez les intervalles de mise à jour.",
@@ -33,6 +18,49 @@
       "no_stations": "Aucune gare trouvée pour cette ville.",
       "invalid_api_key": "Clé API invalide. Veuillez vérifier et réessayer.",
       "already_configured": "Ce trajet est déjà configuré."
+    }
+  },
+  "config_subentries": {
+    "train": {
+      "initiate_flow": {
+        "user": "Ajouter un train",
+        "reconfigure": "Reconfigurer un train"
+      },
+      "entry_type": "Train",
+      "step": {
+        "departure_city": {
+          "title": "Choisissez la ville de départ",
+          "data": {
+            "departure_city": "Nom de la ville"
+          }
+        },
+        "departure_station": {
+          "title": "Choisissez la gare de départ",
+          "data": {
+            "departure_station": "Nom de la gare"
+          }
+        },
+        "arrival_city": {
+          "title": "Choisissez la ville d'arrivée",
+          "data": {
+            "arrival_city": "Nom de la ville"
+          }
+        },
+        "arrival_station": {
+          "title": "Choisissez la gare d'arrivée",
+          "data": {
+            "arrival_station": "Nom de la gare"
+          }
+        },
+        "time_range": {
+          "title": "Choisissez la plage horaire",
+          "data": {
+            "time_start": "Heure de départ",
+            "time_end": "Heure d'arrivé",
+            "train_count": "Nombre de trains"
+          }
+        }
+      }
     }
   }
 }
