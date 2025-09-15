@@ -7,7 +7,7 @@ from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
+from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
@@ -38,8 +38,8 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
         """Initialisation."""
         self.entry = entry
         self.api_client = None
-        self.departure = entry.data[CONF_FROM]
-        self.arrival = entry.data[CONF_TO]
+        self.departure = entry.data.get(CONF_FROM)
+        self.arrival = entry.data.get(CONF_TO)
         self.time_start = entry.options.get(CONF_TIME_START, DEFAULT_TIME_START)
         self.time_end = entry.options.get(CONF_TIME_END, DEFAULT_TIME_END)
         self.update_interval_minutes = entry.options.get(
@@ -61,9 +61,7 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
 
     async def _async_setup(self) -> None:
         """Paramétrage du coordinateur."""
-        api_key = self.entry.options.get(CONF_API_KEY) or self.entry.data.get(
-            CONF_API_KEY, ""
-        )
+        api_key = self.entry.data[CONF_API_KEY]
 
         try:
             session = async_get_clientsession(self.hass)
@@ -74,16 +72,6 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
                 raise ConfigEntryAuthFailed("Clé API invalide ou expirée") from err
             _LOGGER.error("Erreur lors de la récupération des trajets SNCF: %s", err)
             raise UpdateFailed(err)
-
-        try:
-            departures = await self.api_client.fetch_departures(
-                stop_id=self.departure, max_results=1
-            )
-            if departures is None:
-                raise ConfigEntryNotReady("Failed to fetch departures from SNCF API")
-        except Exception as err:
-            _LOGGER.error("Error connecting to SNCF API: %s", err)
-            raise ConfigEntryNotReady from err
 
     def _build_datetime_param(self) -> str:
         """Construit le paramètre datetime pour l'API."""
@@ -141,21 +129,34 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
         self._adjust_update_interval()
         datetime_str = self._build_datetime_param()
 
-        try:
-            journeys = await self.api_client.fetch_journeys(
-                self.departure, self.arrival, datetime_str, count=10
+        trains = {}
+
+        for id, entry in self.entry.subentries.items():
+            departure = entry.data[CONF_FROM]
+            arrival = entry.data[CONF_TO]
+            try:
+                journeys = await self.api_client.fetch_journeys(
+                    departure, arrival, datetime_str, count=10
+                )
+            except Exception as err:
+                _LOGGER.error(
+                    "Erreur lors de la récupération des trajets SNCF: %s", err
+                )
+                raise UpdateFailed(err)
+
+            if journeys is None or not isinstance(journeys, list):
+                _LOGGER.error("Aucune donnée reçue de l'API SNCF pour le trajet ")
+                continue
+
+            i = count(0)
+            trains.update(
+                {
+                    id: {
+                        f"journey_{next(i)}": j
+                        for j in journeys
+                        if isinstance(j, dict) and len(j.get("sections", [])) == 1
+                    }
+                }
             )
-        except Exception as err:
-            _LOGGER.error("Erreur lors de la récupération des trajets SNCF: %s", err)
-            raise UpdateFailed(err)
 
-        if journeys is None or not isinstance(journeys, list):
-            raise UpdateFailed("Aucune donnée reçue de l'API SNCF")
-
-        i = count(0)
-
-        return {
-            f"journey_{next(i)}": j
-            for j in journeys
-            if isinstance(j, dict) and len(j.get("sections", [])) == 1
-        }
+        return trains
