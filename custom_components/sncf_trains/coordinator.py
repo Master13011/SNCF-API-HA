@@ -22,9 +22,6 @@ from .const import (
     CONF_TO,
     CONF_UPDATE_INTERVAL,
     DEFAULT_OUTSIDE_INTERVAL,
-    DEFAULT_TIME_END,
-    DEFAULT_TIME_START,
-    DEFAULT_TRAIN_COUNT,
     DEFAULT_UPDATE_INTERVAL,
 )
 
@@ -38,24 +35,17 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
         """Initialisation."""
         self.entry = entry
         self.api_client = None
-        self.departure = entry.data.get(CONF_FROM)
-        self.arrival = entry.data.get(CONF_TO)
-        self.time_start = entry.options.get(CONF_TIME_START, DEFAULT_TIME_START)
-        self.time_end = entry.options.get(CONF_TIME_END, DEFAULT_TIME_END)
         self.update_interval_minutes = entry.options.get(
             CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL
         )
         self.outside_interval_minutes = entry.options.get(
             CONF_OUTSIDE_INTERVAL, DEFAULT_OUTSIDE_INTERVAL
         )
-        self.train_count = entry.options.get("train_count", DEFAULT_TRAIN_COUNT)
-        self.departure_name = entry.data.get("departure_name", self.departure)
-        self.arrival_name = entry.data.get("arrival_name", self.arrival)
 
         super().__init__(
             hass,
             _LOGGER,
-            name=f"SNCF Train Journeys {self.departure}→{self.arrival}",
+            name="SNCF Train Journeys",
             update_interval=timedelta(minutes=self.update_interval_minutes),
         )
 
@@ -73,11 +63,11 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
             _LOGGER.error("Erreur lors de la récupération des trajets SNCF: %s", err)
             raise UpdateFailed(err)
 
-    def _build_datetime_param(self) -> str:
+    def _build_datetime_param(self, time_start, time_end) -> str:
         """Construit le paramètre datetime pour l'API."""
         now = dt_util.now()
-        h_start, m_start = map(int, self.time_start.split(":"))
-        h_end, m_end = map(int, self.time_end.split(":"))
+        h_start, m_start = map(int, time_start.split(":"))
+        h_end, m_end = map(int, time_end.split(":"))
         dt_start = now.replace(hour=h_start, minute=m_start, second=0, microsecond=0)
         dt_end = now.replace(hour=h_end, minute=m_end, second=0, microsecond=0)
 
@@ -86,11 +76,11 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
 
         return dt_start.strftime("%Y%m%dT%H%M%S")
 
-    def _adjust_update_interval(self):
+    def _adjust_update_interval(self, time_start, time_end) -> timedelta | None:
         """Ajuste la fréquence selon la plage horaire, avec préfenêtre 1h et gestion minuit."""
         now = dt_util.now()
-        h_start, m_start = map(int, self.time_start.split(":"))
-        h_end, m_end = map(int, self.time_end.split(":"))
+        h_start, m_start = map(int, time_start.split(":"))
+        h_end, m_end = map(int, time_end.split(":"))
 
         start = now.replace(hour=h_start, minute=m_start, second=0, microsecond=0)
         end = now.replace(hour=h_end, minute=m_end, second=0, microsecond=0)
@@ -122,18 +112,25 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
                 else self.update_interval.total_seconds() / 60,
                 interval_minutes,
             )
-            self.update_interval = new_interval
+            return new_interval
+
+        return new_interval
 
     async def _async_update_data(self) -> dict[str, Any]:
         """Récupère les données de l'API SNCF."""
-        self._adjust_update_interval()
-        datetime_str = self._build_datetime_param()
 
+        update_intervals = []
         trains = {}
-
         for id, entry in self.entry.subentries.items():
+            _LOGGER.debug(entry.title)
             departure = entry.data[CONF_FROM]
             arrival = entry.data[CONF_TO]
+            time_start = entry.data[CONF_TIME_START]
+            time_end = entry.data[CONF_TIME_END]
+
+            update_intervals.append(self._adjust_update_interval(time_start, time_end))
+            datetime_str = self._build_datetime_param(time_start, time_end)
+
             try:
                 journeys = await self.api_client.fetch_journeys(
                     departure, arrival, datetime_str, count=10
@@ -151,12 +148,18 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
             i = count(0)
             trains.update(
                 {
-                    id: {
-                        f"journey_{next(i)}": j
+                    id: [
+                        j
                         for j in journeys
                         if isinstance(j, dict) and len(j.get("sections", [])) == 1
-                    }
+                    ]
                 }
             )
+
+        self.update_interval = min(update_intervals)
+        _LOGGER.debug(
+            "Coordinator update interval: %s minutes",
+            self.update_interval.total_seconds() / 60,
+        )
 
         return trains

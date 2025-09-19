@@ -11,8 +11,7 @@ from .coordinator import SncfUpdateCoordinator
 
 type SncfDataConfigEntry = ConfigEntry[SncfUpdateCoordinator]
 
-# PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.CALENDAR]
-PLATFORMS: list[Platform] = [Platform.SENSOR]
+PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.CALENDAR]
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -45,9 +44,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: SncfDataConfigEntry) -> 
 
 async def async_unload_entry(hass: HomeAssistant, entry: SncfDataConfigEntry) -> bool:
     """Unload a config entry."""
-    if unload_ok := await hass.config_entries.async_unload_platforms(entry, PLATFORMS):
-        entry.runtime_data.listener()
-    return unload_ok
+    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
 
 async def async_reload_entry(hass: HomeAssistant, entry: SncfDataConfigEntry) -> None:
@@ -61,12 +58,12 @@ async def async_migrate_entry(hass: HomeAssistant, entry: SncfDataConfigEntry) -
     options = dict(entry.options)
     updated = False
 
-    if CONF_API_KEY in data:
-        options.setdefault(CONF_API_KEY, data.pop(CONF_API_KEY))
+    if CONF_API_KEY in options:
+        data.setdefault(CONF_API_KEY, options.pop(CONF_API_KEY))
         updated = True
 
     if updated:
         hass.config_entries.async_update_entry(entry, data=data, options=options)
-        _LOGGER.info("Migrated SNCF config entry to move api_key to options.")
+        _LOGGER.info("Migrated SNCF config entry to move api_key to data.")
 
     return True
