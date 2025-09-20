@@ -78,9 +78,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: SncfDataConfigEntry) -
 
         time_start = options[CONF_TIME_START]
         time_end = options[CONF_TIME_END]
-        departure_name = data[CONF_DEPARTURE_NAME]
-        arrival_name = data[CONF_ARRIVAL_NAME]
-        unique_id = f"{departure_name}_{arrival_name}_{time_start}_{time_end}"
+        unique_id = f"{data[CONF_FROM]}_{data[CONF_TO]}_{time_start}_{time_end}"
         title = f"Trajet: {data[CONF_DEPARTURE_NAME]} → {data[CONF_ARRIVAL_NAME]} ({time_start} - {time_end})"
         subentry_data = {
             CONF_FROM: data[CONF_FROM],
@@ -95,8 +93,8 @@ async def async_migrate_entry(hass: HomeAssistant, entry: SncfDataConfigEntry) -
         subentry = ConfigSubentry(
             title=title,
             data=subentry_data,
-            subentry_id="1",
-            subentry_type="t",
+            subentry_id=entry.entry_id,
+            subentry_type="train",
             unique_id=unique_id,
         )
         hass.config_entries.async_add_subentry(entry, subentry)
