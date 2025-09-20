@@ -2,11 +2,22 @@
 
 import logging
 
-from homeassistant.config_entries import ConfigEntry
+from homeassistant.config_entries import ConfigEntry, ConfigSubentry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_registry import Platform
 
-from .const import CONF_API_KEY, CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL
+from .const import (
+    CONF_API_KEY,
+    CONF_ARRIVAL_NAME,
+    CONF_DEPARTURE_NAME,
+    CONF_FROM,
+    CONF_TIME_END,
+    CONF_TIME_START,
+    CONF_TO,
+    CONF_TRAIN_COUNT,
+    CONF_UPDATE_INTERVAL,
+    DEFAULT_UPDATE_INTERVAL,
+)
 from .coordinator import SncfUpdateCoordinator
 
 type SncfDataConfigEntry = ConfigEntry[SncfUpdateCoordinator]
@@ -64,6 +75,30 @@ async def async_migrate_entry(hass: HomeAssistant, entry: SncfDataConfigEntry) -
 
     if updated:
         hass.config_entries.async_update_entry(entry, data=data, options=options)
-        _LOGGER.info("Migrated SNCF config entry to move api_key to data.")
+
+        time_start = options[CONF_TIME_START]
+        time_end = options[CONF_TIME_END]
+        departure_name = data[CONF_DEPARTURE_NAME]
+        arrival_name = data[CONF_ARRIVAL_NAME]
+        unique_id = f"{departure_name}_{arrival_name}_{time_start}_{time_end}"
+        title = f"Trajet: {data[CONF_DEPARTURE_NAME]} → {data[CONF_ARRIVAL_NAME]} ({time_start} - {time_end})"
+        subentry_data = {
+            CONF_FROM: data[CONF_FROM],
+            CONF_TO: data[CONF_TO],
+            CONF_DEPARTURE_NAME: data[CONF_DEPARTURE_NAME],
+            CONF_ARRIVAL_NAME: data[CONF_ARRIVAL_NAME],
+            CONF_TIME_START: options[CONF_TIME_START],
+            CONF_TIME_END: options[CONF_TIME_END],
+            CONF_TRAIN_COUNT: options[CONF_TRAIN_COUNT],
+        }
+
+        subentry = ConfigSubentry(
+            title=title,
+            data=subentry_data,
+            subentry_id="1",
+            subentry_type="t",
+            unique_id=unique_id,
+        )
+        hass.config_entries.async_add_subentry(entry, subentry)
 
     return True
