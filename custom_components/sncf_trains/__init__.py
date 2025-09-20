@@ -1,7 +1,5 @@
 """The SNCF Train integration."""
 
-import logging
-
 from homeassistant.config_entries import ConfigEntry, ConfigSubentry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_registry import Platform
@@ -15,34 +13,16 @@ from .const import (
     CONF_TIME_START,
     CONF_TO,
     CONF_TRAIN_COUNT,
-    CONF_UPDATE_INTERVAL,
-    DEFAULT_UPDATE_INTERVAL,
 )
 from .coordinator import SncfUpdateCoordinator
 
 type SncfDataConfigEntry = ConfigEntry[SncfUpdateCoordinator]
 
 PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.CALENDAR]
-_LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: SncfDataConfigEntry) -> bool:
     """Set up SNCF Train as config entry."""
-    if not entry.options:
-        hass.config_entries.async_update_entry(
-            entry,
-            options={
-                CONF_UPDATE_INTERVAL: entry.data.get(
-                    CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL
-                )
-            },
-        )
-
-    api_key = entry.options.get(CONF_API_KEY) or entry.data.get(CONF_API_KEY)
-    if not api_key:
-        _LOGGER.error("API key not found in options")
-        return False
-
     coordinator = SncfUpdateCoordinator(hass, entry)
     await coordinator.async_config_entry_first_refresh()
     entry.runtime_data = coordinator
@@ -74,28 +54,30 @@ async def async_migrate_entry(hass: HomeAssistant, entry: SncfDataConfigEntry) -
         updated = True
 
     if updated:
-        hass.config_entries.async_update_entry(entry, data=data, options=options)
-
-        time_start = options[CONF_TIME_START]
-        time_end = options[CONF_TIME_END]
-        unique_id = f"{data[CONF_FROM]}_{data[CONF_TO]}_{time_start}_{time_end}"
-        title = f"Trajet: {data[CONF_DEPARTURE_NAME]} → {data[CONF_ARRIVAL_NAME]} ({time_start} - {time_end})"
+        time_start = options.pop(CONF_TIME_START)
+        time_end = options.pop(CONF_TIME_END)
+        train_count = options.pop(CONF_TRAIN_COUNT)
+        from_ = data.pop(CONF_FROM)
+        to_ = data.pop(CONF_FROM)
+        dep_name = data.pop(CONF_DEPARTURE_NAME)
+        arr_name = data.pop(CONF_ARRIVAL_NAME)
         subentry_data = {
-            CONF_FROM: data[CONF_FROM],
-            CONF_TO: data[CONF_TO],
-            CONF_DEPARTURE_NAME: data[CONF_DEPARTURE_NAME],
-            CONF_ARRIVAL_NAME: data[CONF_ARRIVAL_NAME],
-            CONF_TIME_START: options[CONF_TIME_START],
-            CONF_TIME_END: options[CONF_TIME_END],
-            CONF_TRAIN_COUNT: options[CONF_TRAIN_COUNT],
+            CONF_FROM: from_,
+            CONF_TO: to_,
+            CONF_DEPARTURE_NAME: dep_name,
+            CONF_ARRIVAL_NAME: arr_name,
+            CONF_TIME_START: time_start,
+            CONF_TIME_END: time_end,
+            CONF_TRAIN_COUNT: train_count,
         }
 
+        hass.config_entries.async_update_entry(entry, data=data, options=options)
         subentry = ConfigSubentry(
-            title=title,
+            title=f"Trajet: {dep_name} → {arr_name} ({time_start} - {time_end})",
             data=subentry_data,
             subentry_id=entry.entry_id,
             subentry_type="train",
-            unique_id=unique_id,
+            unique_id=f"{from_}_{to_}_{time_start}_{time_end}",
         )
         hass.config_entries.async_add_subentry(entry, subentry)
 
