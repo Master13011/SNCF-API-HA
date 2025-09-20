@@ -73,7 +73,11 @@ async def async_migrate_entry(hass: HomeAssistant, entry: SncfDataConfigEntry) -
         }
 
         hass.config_entries.async_update_entry(
-            entry, data=data, options=options, unique_id="sncf_trains"
+            entry,
+            data=data,
+            options=options,
+            unique_id="sncf_trains",
+            title="Trains SNCF",
         )
         subentry = ConfigSubentry(
             title=f"Trajet: {dep_name} → {arr_name} ({time_start} - {time_end})",
