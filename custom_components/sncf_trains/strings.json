@@ -2,7 +2,7 @@
   "config": {
     "step": {
       "user": {
-        "title": "Entrez la clé API SNCF"
+        "title": "Please set SNCF API Key"
       }
     },
     "error": {
@@ -16,10 +16,10 @@
     "step": {
       "init": {
         "title": "Options",
-        "description": "Définissez les intervalles de mise à jour.",
+        "description": "Set updated and outside intervals",
         "data": {
-          "update_interval": "Intervalle pendant la plage horaire (minutes)",
-          "outside_interval": "Intervalle en dehors de la plage horaire (minutes)"
+          "update_interval": "Update interval (minutes)",
+          "outside_interval": "Outside interval (minutes)"
         }
       }
     }
@@ -27,49 +27,49 @@
   "config_subentries": {
     "train": {
       "initiate_flow": {
-        "user": "Ajouter un train",
-        "reconfigure": "Reconfigurer un train"
+        "user": "Add journey",
+        "reconfigure": "Reconfigure a journey"
       },
       "entry_type": "Train",
       "step": {
         "departure_city": {
-          "title": "Choisissez la ville de départ",
+          "title": "Select departure city",
           "data": {
-            "departure_city": "Nom de la ville"
+            "departure_city": "City name"
           }
         },
         "departure_station": {
-          "title": "Choisissez la gare de départ",
+          "title": "Select departure station",
           "data": {
-            "departure_station": "Nom de la gare"
+            "departure_station": "Station name"
           }
         },
         "arrival_city": {
-          "title": "Choisissez la ville d'arrivée",
+          "title": "Select arrival city",
           "data": {
-            "arrival_city": "Nom de la ville"
+            "departure_city": "City name"
           }
         },
         "arrival_station": {
-          "title": "Choisissez la gare d'arrivée",
+          "title": "Select arrival station",
           "data": {
-            "arrival_station": "Nom de la gare"
+            "departure_station": "Station name"
           }
         },
         "time_range": {
-          "title": "Choisissez la plage horaire",
+          "title": "Range hours",
           "data": {
-            "time_start": "Heure de départ",
-            "time_end": "Heure d'arrivé",
-            "train_count": "Nombre de trains"
+            "time_start": "Time start",
+            "time_end": "Time end",
+            "train_count": "Trains count"
           }
         },
         "reconfigure": {
-          "title": "Choisissez la plage horaire",
+          "title": "Range hours",
           "data": {
-            "time_start": "Heure de départ",
-            "time_end": "Heure d'arrivé",
-            "train_count": "Nombre de trains"
+            "time_start": "Time start",
+            "time_end": "Time end",
+            "train_count": "Trains count"
           }
         }
       },
