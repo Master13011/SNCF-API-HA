@@ -242,7 +242,10 @@ class TrainSubentryFlowHandler(ConfigSubentryFlow):
             data.update(user_input)
 
             return self.async_update_and_abort(
-                self._get_entry(), config_subentry, data=data
+                self._get_entry(),
+                config_subentry,
+                data=data,
+                title=f"Trajet: {data[CONF_DEPARTURE_NAME]} → {data[CONF_ARRIVAL_NAME]} ({data[CONF_TIME_START]} - {data[CONF_TIME_END]})",
             )
 
         DATA_SCHEMA = vol.Schema(
