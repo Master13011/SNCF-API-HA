@@ -36,9 +36,13 @@ from .const import (
 
 
 class SncfTrainsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+    """Handle a config flow."""
+
     VERSION = 1
+    MINOR_VERSION = 2
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None):
+        """Handle the initial step."""
         errors = {}
         if user_input is not None:
             session = async_get_clientsession(self.hass)
@@ -64,6 +68,7 @@ class SncfTrainsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         )
 
     async def _validate_api_key(self, api: SncfApiClient):
+        """Check API Key."""
         try:
             results = await api.search_stations("paris")
             return bool(results)
@@ -83,6 +88,7 @@ class SncfTrainsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     @staticmethod
     @callback
     def async_get_options_flow(config_entry: ConfigEntry):
+        """Return options."""
         return SncfTrainsOptionsFlowHandler()
 
     async_step_reconfigure = async_step_user
@@ -92,6 +98,7 @@ class SncfTrainsOptionsFlowHandler(OptionsFlow):
     """Options flow."""
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None):
+        """Handle the initial options step."""
         if user_input is not None:
             return self.async_create_entry(title="", data=user_input)
 
@@ -120,6 +127,7 @@ class TrainSubentryFlowHandler(ConfigSubentryFlow):
     async def async_step_departure_city(
         self, user_input: dict[str, Any] | None = None
     ) -> SubentryFlowResult:
+        """Handle the departure city step."""
         errors = {}
         if user_input is not None:
             self.config_entry = self._get_entry()
@@ -145,6 +153,7 @@ class TrainSubentryFlowHandler(ConfigSubentryFlow):
     async def async_step_departure_station(
         self, user_input: dict[str, Any] | None = None
     ) -> SubentryFlowResult:
+        """Handle the departure station step."""
         if user_input is not None:
             self.departure_station = user_input[CONF_DEPARTURE_STATION]
             return await self.async_step_arrival_city()
@@ -162,6 +171,7 @@ class TrainSubentryFlowHandler(ConfigSubentryFlow):
     async def async_step_arrival_city(
         self, user_input: dict[str, Any] | None = None
     ) -> SubentryFlowResult:
+        """Handle the arrival city step."""
         errors = {}
         if user_input is not None:
             self.arrival_city = user_input[CONF_ARRIVAL_CITY]
@@ -180,6 +190,7 @@ class TrainSubentryFlowHandler(ConfigSubentryFlow):
     async def async_step_arrival_station(
         self, user_input: dict[str, Any] | None = None
     ) -> SubentryFlowResult:
+        """Handle the arrival station step."""
         if user_input is not None:
             self.arrival_station = user_input[CONF_ARRIVAL_STATION]
             return await self.async_step_time_range()
@@ -197,6 +208,7 @@ class TrainSubentryFlowHandler(ConfigSubentryFlow):
     async def async_step_time_range(
         self, user_input: dict[str, Any] | None = None
     ) -> SubentryFlowResult:
+        """Handle the time range step."""
         if user_input is not None:
             dep_name = self.departure_options.get(self.departure_station, {}).get(
                 "name", self.departure_station
@@ -237,7 +249,7 @@ class TrainSubentryFlowHandler(ConfigSubentryFlow):
     async def async_step_reconfigure(
         self, user_input: dict[str, Any] | None = None
     ) -> SubentryFlowResult:
-        """User flow to modify an existing location."""
+        """User flow to modify an existing entry."""
         config_subentry = self._get_reconfigure_subentry()
 
         if user_input is not None:
