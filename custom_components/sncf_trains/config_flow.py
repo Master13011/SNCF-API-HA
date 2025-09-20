@@ -54,10 +54,13 @@ class SncfTrainsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
                         self._get_reconfigure_entry(), data=user_input
                     )
 
+        DATA_SCHEMA = vol.Schema({vol.Required(CONF_API_KEY): str})
+        if self.source == "reconfigure":
+            entry = self._get_reconfigure_entry()
+            DATA_SCHEMA = self.add_suggested_values_to_schema(DATA_SCHEMA, entry.data)
+
         return self.async_show_form(
-            step_id="user",
-            data_schema=vol.Schema({vol.Required(CONF_API_KEY): str}),
-            errors=errors,
+            step_id="user", data_schema=DATA_SCHEMA, errors=errors
         )
 
     async def _validate_api_key(self, api: SncfApiClient):
