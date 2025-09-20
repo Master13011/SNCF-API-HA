@@ -58,7 +58,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: SncfDataConfigEntry) -
         time_end = options.pop(CONF_TIME_END)
         train_count = options.pop(CONF_TRAIN_COUNT)
         from_ = data.pop(CONF_FROM)
-        to_ = data.pop(CONF_FROM)
+        to_ = data.pop(CONF_TO)
         dep_name = data.pop(CONF_DEPARTURE_NAME)
         arr_name = data.pop(CONF_ARRIVAL_NAME)
         subentry_data = {
@@ -70,12 +70,14 @@ async def async_migrate_entry(hass: HomeAssistant, entry: SncfDataConfigEntry) -
             CONF_TIME_END: time_end,
             CONF_TRAIN_COUNT: train_count,
         }
+        subentry_id = entry.entry_id
+        entry.entry_id = "sncf_trains"
 
         hass.config_entries.async_update_entry(entry, data=data, options=options)
         subentry = ConfigSubentry(
             title=f"Trajet: {dep_name} → {arr_name} ({time_start} - {time_end})",
             data=subentry_data,
-            subentry_id=entry.entry_id,
+            subentry_id=subentry_id,
             subentry_type="train",
             unique_id=f"{from_}_{to_}_{time_start}_{time_end}",
         )
