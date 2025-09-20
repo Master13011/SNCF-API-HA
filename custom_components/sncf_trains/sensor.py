@@ -54,7 +54,7 @@ class SncfJourneySensor(CoordinatorEntity[SncfUpdateCoordinator], SensorEntity):
     """Main SNCF sensor: number of direct journeys & summary."""
 
     _attr_has_entity_name = True
-    _attr_name = "Trains SNCF"
+    _attr_name = "Trajets"
     _attr_icon = "mdi:train"
     _attr_native_unit_of_measurement = "trajets"
 
@@ -101,13 +101,15 @@ class SncfTrainSensor(CoordinatorEntity[SncfUpdateCoordinator], SensorEntity):
         self.jid = journey_id
         entry = self.coordinator.entry.subentries[train_id]
         journey = coordinator.data[train_id][journey_id]
+        section = journey.get("sections", [{}])[0]
+        departure_time = parse_datetime(section.get("base_departure_date_time", ""))
         dep_name = entry.data[CONF_DEPARTURE_NAME]
         arr_name = entry.data[CONF_ARRIVAL_NAME]
 
         self.departure = entry.data[CONF_FROM]
         self.arrival = entry.data[CONF_TO]
 
-        self._attr_name = f"SNCF Train #{journey_id + 1} ({dep_name} → {arr_name})"
+        self._attr_name = f"Train de {departure_time.time()}"
         self._attr_unique_id = f"{entry.subentry_id}_{journey_id}"
         self._attr_extra_state_attributes = self._extra_attributes(journey)
         self._attr_device_info = {
@@ -117,11 +119,7 @@ class SncfTrainSensor(CoordinatorEntity[SncfUpdateCoordinator], SensorEntity):
             "model": "API",
             "entry_type": DeviceEntryType.SERVICE,
         }
-
-        section = journey.get(f"journey_{journey_id}", {}).get("sections", [{}])[0]
-        self._attr_native_value = parse_datetime(
-            section.get("base_departure_date_time", "")
-        )
+        self._attr_native_value = departure_time
 
     @callback
     def _handle_coordinator_update(self) -> None:
