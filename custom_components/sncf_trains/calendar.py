@@ -58,6 +58,7 @@ class SNCFCalendar(CoordinatorEntity[SncfUpdateCoordinator], CalendarEntity):
         self._attr_device_info = {
             "identifiers": {(DOMAIN, coordinator.entry.entry_id)},
             "name": "SNCF",
+            "manufacturer": "Master13011",
             "model": "API",
             "entry_type": DeviceEntryType.SERVICE,
         }
