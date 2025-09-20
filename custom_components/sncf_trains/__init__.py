@@ -61,7 +61,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: SncfDataConfigEntry) -
         to_ = data.pop(CONF_TO)
         dep_name = data.pop(CONF_DEPARTURE_NAME)
         arr_name = data.pop(CONF_ARRIVAL_NAME)
-        subentry_id = entry.entry_id
+        subentry_id = f"{entry.entry_id}_MIGRATE"
         subentry_data = {
             CONF_FROM: from_,
             CONF_TO: to_,
