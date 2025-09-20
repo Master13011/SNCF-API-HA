@@ -1,6 +1,5 @@
 """Sensors for trains hours."""
 
-import logging
 from typing import Any
 
 from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
@@ -20,8 +19,6 @@ from .const import (
 )
 from .coordinator import SncfUpdateCoordinator
 from .helpers import format_time, get_duration, get_train_num, parse_datetime
-
-_LOGGER = logging.getLogger(__name__)
 
 
 async def async_setup_entry(
