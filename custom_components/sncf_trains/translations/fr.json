@@ -11,22 +11,22 @@
       }
     },
     "error": {
-      "no_stations": "Aucune station trouvée.",
       "invalid_api_key": "Clé API invalide. Veuillez vérifier et réessayer."
     },
     "abort": {
-      "already_configured": "Cette configuration existe déjà."
+      "reconfigure_successful": "Compose reconfiguré avec succès"
     }
   },
   "options": {
-    "title": "Options",
-    "description": "Définissez les intervalles de mise à jour.",
-    "data": {
-      "update_interval": "Intervalle pendant la plage horaire (minutes)",
-      "outside_interval": "Intervalle en dehors de la plage horaire (minutes)",
-      "train_count": "Nombre de trains affichés",
-      "time_start": "Heure de début de recherche",
-      "time_end": "Heure de fin de recherche"
+    "step": {
+      "init": {
+        "title": "Options",
+        "description": "Définissez les intervalles de mise à jour.",
+        "data": {
+          "update_interval": "Intervalle pendant la plage horaire (minutes)",
+          "outside_interval": "Intervalle en dehors de la plage horaire (minutes)"
+        }
+      }
     }
   },
   "config_subentries": {
@@ -68,7 +68,22 @@
             "time_end": "Heure d'arrivé",
             "train_count": "Nombre de trains"
           }
+        },
+        "reconfigure": {
+          "title": "Choisissez la plage horaire",
+          "data": {
+            "time_start": "Heure de départ",
+            "time_end": "Heure d'arrivé",
+            "train_count": "Nombre de trains"
+          }
         }
+      },
+      "error": {
+        "no_stations": "Aucune gare trouvée pour cette ville."
+      },
+      "abort": {
+        "already_configured_as_entry": "Ce trajet est déjà configuré.",
+        "reconfigure_successful": "Trajet reconfiguré avec succès"
       }
     }
   }

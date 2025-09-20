@@ -3,21 +3,25 @@
     "step": {
       "user": {
         "title": "Entrez la clé API SNCF"
-      },
-      "options": {
+      }
+    },
+    "error": {
+      "invalid_api_key": "API Key not found. Please retry."
+    },
+    "abort": {
+      "reconfigure_successful": "[%key:common::config_flow::abort::reconfigure_successful%]"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
         "title": "Options",
         "description": "Définissez les intervalles de mise à jour.",
         "data": {
           "update_interval": "Intervalle pendant la plage horaire (minutes)",
-          "outside_interval": "Intervalle en dehors de la plage horaire (minutes)",
-          "train_count": "Nombre de trains affichés"
+          "outside_interval": "Intervalle en dehors de la plage horaire (minutes)"
         }
       }
-    },
-    "error": {
-      "no_stations": "Aucune gare trouvée pour cette ville.",
-      "invalid_api_key": "Clé API invalide. Veuillez vérifier et réessayer.",
-      "already_configured": "Ce trajet est déjà configuré."
     }
   },
   "config_subentries": {
@@ -59,7 +63,22 @@
             "time_end": "Heure d'arrivé",
             "train_count": "Nombre de trains"
           }
+        },
+        "reconfigure": {
+          "title": "Choisissez la plage horaire",
+          "data": {
+            "time_start": "Heure de départ",
+            "time_end": "Heure d'arrivé",
+            "train_count": "Nombre de trains"
+          }
         }
+      },
+      "error": {
+        "no_stations": "No station for this city"
+      },
+      "abort": {
+        "already_configured_as_entry": "Already train is configured",
+        "reconfigure_successful": "[%key:common::config_flow::abort::reconfigure_successful%]"
       }
     }
   }
