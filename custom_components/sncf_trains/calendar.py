@@ -1,10 +1,11 @@
 """Calendar for trains hours."""
 
 import logging
+from dataclasses import dataclass
 from datetime import datetime
 
 from homeassistant.components.calendar import CalendarEntity, CalendarEvent
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceEntryType
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -25,35 +26,62 @@ async def async_setup_entry(
 ) -> None:
     """Set up the Demo Calendar config entry."""
     coordinator: SncfUpdateCoordinator = entry.runtime_data
-    async_add_entities([SNCFCalendar(coordinator)])
+    async_add_entities([SNCFCalendar(coordinator)], update_before_add=True)
+
+
+@dataclass
+class SNCFEventMixIn:
+    """Mixin for calendar event."""
+
+    has_delay: bool
+    delay: int
+    departure_date_time: datetime
+    arrival_date_time: datetime
+
+
+@dataclass
+class MyCalendarEvent(CalendarEvent, SNCFEventMixIn):
+    """A class to describe a calendar event."""
 
 
 class SNCFCalendar(CoordinatorEntity[SncfUpdateCoordinator], CalendarEntity):
     """Representation of a Calendar element."""
 
-    _attr_name: str | None = None
+    _attr_name = "Calendrier des Trains"
 
     def __init__(self, coordinator: SncfUpdateCoordinator) -> None:
         """Initialize demo calendar."""
         super().__init__(coordinator)
-        self._event: CalendarEvent | None = None
+        self._event: MyCalendarEvent | None = None
         self._attr_unique_id = f"calendar_sncf_train_{coordinator.entry.entry_id}"
-        self._attr_name = "SNCF Train"
         self._attr_device_info = {
             "identifiers": {(DOMAIN, coordinator.entry.entry_id)},
-            "name": "SNCF Trains",
+            "name": "Trains SNCF",
             "manufacturer": "Master13011",
             "model": "API",
             "entry_type": DeviceEntryType.SERVICE,
         }
 
     @property
-    def event(self) -> CalendarEvent | None:
+    def event(self) -> MyCalendarEvent | None:
         """Return the current or next upcoming event."""
         if not self.available:
             return None
 
-        return min(self._fetch_journeys(), key=lambda x: abs(x.start - dt.now()))
+        return self._event
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator."""
+        self._event = min(self._fetch_journeys(), key=lambda x: abs(x.start - dt.now()))
+        if self._event:
+            self._attr_extra_state_attributes = {
+                "has_delay": self._event.has_delay,
+                "delay": self._event.delay,
+                "departure": self._event.departure_date_time,
+                "arrival": self._event.arrival_date_time,
+            }
+        self.async_write_ha_state()
 
     async def async_get_events(
         self, hass: HomeAssistant, start_date: datetime, end_date: datetime
@@ -100,17 +128,23 @@ class SNCFCalendar(CoordinatorEntity[SncfUpdateCoordinator], CalendarEntity):
                 section = journey.get("sections", [{}])[0]
                 dep_dt = parse_datetime(journey.get("departure_date_time", ""))
                 arr_dt = parse_datetime(journey.get("arrival_date_time", ""))
-                _, _, summary = self._async_calculate_delay(journey, dep_name, arr_name)
+                has_delay, delay, summary = self._async_calculate_delay(
+                    journey, dep_name, arr_name
+                )
 
                 if dep_dt and arr_dt:
                     calendar_events.append(
-                        CalendarEvent(
+                        MyCalendarEvent(
                             summary=summary,
                             start=dep_dt,
                             end=dep_dt,
                             description=f"Arrivée: {arr_dt}",
-                            location=section.get("from", {}).get("name"),
+                            location=str(dep_name),
                             uid=section.get("id"),
+                            has_delay=has_delay,
+                            delay=delay,
+                            departure_date_time=dep_dt,
+                            arrival_date_time=arr_dt,
                         )
                     )
 
