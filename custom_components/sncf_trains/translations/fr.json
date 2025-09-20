@@ -32,8 +32,8 @@
   "config_subentries": {
     "train": {
       "initiate_flow": {
-        "user": "Ajouter un train",
-        "reconfigure": "Reconfigurer un train"
+        "user": "Ajouter un trajet",
+        "reconfigure": "Reconfigurer un trajet"
       },
       "entry_type": "Train",
       "step": {
