@@ -106,7 +106,7 @@ class SncfTrainSensor(CoordinatorEntity[SncfUpdateCoordinator], SensorEntity):
         self.departure = entry.data[CONF_FROM]
         self.arrival = entry.data[CONF_TO]
 
-        self._attr_name = f"Train #{journey_id}"
+        self._attr_name = f"Train {journey_id + 1}"
         self._attr_unique_id = f"{entry.subentry_id}_{journey_id}"
         self._attr_extra_state_attributes = self._extra_attributes(journey)
         self._attr_device_info = {
