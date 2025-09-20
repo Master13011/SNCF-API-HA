@@ -64,7 +64,7 @@ class SncfJourneySensor(CoordinatorEntity[SncfUpdateCoordinator], SensorEntity):
         self._attr_unique_id = f"sncf_trains_{coordinator.entry.entry_id}"
         self._attr_device_info = {
             "identifiers": {(DOMAIN, coordinator.entry.entry_id)},
-            "name": "Trains SNCF",
+            "name": "SNCF",
             "manufacturer": "Master13011",
             "model": "API",
             "entry_type": DeviceEntryType.SERVICE,
