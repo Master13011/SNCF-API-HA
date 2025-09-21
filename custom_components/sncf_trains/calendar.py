@@ -2,7 +2,7 @@
 
 import logging
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from homeassistant.components.calendar import CalendarEntity, CalendarEvent
 from homeassistant.core import HomeAssistant, callback
@@ -142,7 +142,7 @@ class SNCFCalendar(CoordinatorEntity[SncfUpdateCoordinator], CalendarEntity):
                         MyCalendarEvent(
                             summary=summary,
                             start=dep_dt,
-                            end=dep_dt,
+                            end=dep_dt + timedelta(minutes=1),
                             description=f"Arrivée: {arr_dt}",
                             location=str(dep_name),
                             uid=section.get("id"),
