@@ -1,15 +1,14 @@
 """Calendar for trains hours."""
 
-import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+import logging
 
 from homeassistant.components.calendar import CalendarEntity, CalendarEvent
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.device_registry import DeviceEntryType
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
-from homeassistant.util import dt
 
 from . import SncfDataConfigEntry
 from .const import CONF_ARRIVAL_NAME, CONF_DEPARTURE_NAME, CONF_TRAIN_COUNT, DOMAIN
@@ -76,7 +75,7 @@ class SNCFCalendar(CoordinatorEntity[SncfUpdateCoordinator], CalendarEntity):
         """Handle updated data from the coordinator."""
         if self._fetch_journeys():
             self._event = min(
-                self._fetch_journeys(), key=lambda x: abs(x.start - dt.now())
+                self._fetch_journeys(), key=lambda x: abs(x.start - datetime.now())
             )
             if self._event:
                 self._attr_extra_state_attributes = {
@@ -121,14 +120,14 @@ class SNCFCalendar(CoordinatorEntity[SncfUpdateCoordinator], CalendarEntity):
         return delay > 0, delay, summary
 
     def _fetch_journeys(self):
-        """Fetch journeys"""
+        """Fetch journeys."""
         calendar_events = []
         for tid, journeys in self.coordinator.data.items():
             entry = self.coordinator.entry.subentries[tid]
             dep_name = entry.data[CONF_DEPARTURE_NAME]
             arr_name = entry.data[CONF_ARRIVAL_NAME]
             display_count = min(len(journeys), entry.data[CONF_TRAIN_COUNT])
-            _LOGGER.debug(f"{dep_name} -> {arr_name}")
+            _LOGGER.debug("%s -> %s", dep_name, arr_name)
             for journey in journeys[:display_count]:
                 section = journey.get("sections", [{}])[0]
                 dep_dt = parse_datetime(journey.get("departure_date_time", ""))
@@ -143,7 +142,7 @@ class SNCFCalendar(CoordinatorEntity[SncfUpdateCoordinator], CalendarEntity):
                             summary=summary,
                             start=dep_dt,
                             end=dep_dt + timedelta(minutes=1),
-                            description=f"Arrivée: {arr_dt}",
+                            description=f"Arrivée: {arr_dt}, retard: {delay} minutes",
                             location=str(dep_name),
                             uid=section.get("id"),
                             has_delay=has_delay,
