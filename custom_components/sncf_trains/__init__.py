@@ -1,5 +1,7 @@
 """The SNCF Train integration."""
 
+from types import MappingProxyType
+
 from homeassistant.config_entries import ConfigEntry, ConfigSubentry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_registry import Platform
@@ -61,16 +63,17 @@ async def async_migrate_entry(hass: HomeAssistant, entry: SncfDataConfigEntry) -
         to_ = data.pop(CONF_TO)
         dep_name = data.pop(CONF_DEPARTURE_NAME)
         arr_name = data.pop(CONF_ARRIVAL_NAME)
-        subentry_id = f"{entry.entry_id}_MIGRATE"
-        subentry_data = {
-            CONF_FROM: from_,
-            CONF_TO: to_,
-            CONF_DEPARTURE_NAME: dep_name,
-            CONF_ARRIVAL_NAME: arr_name,
-            CONF_TIME_START: time_start,
-            CONF_TIME_END: time_end,
-            CONF_TRAIN_COUNT: train_count,
-        }
+        subentry_data = MappingProxyType(
+            {
+                CONF_FROM: from_,
+                CONF_TO: to_,
+                CONF_DEPARTURE_NAME: dep_name,
+                CONF_ARRIVAL_NAME: arr_name,
+                CONF_TIME_START: time_start,
+                CONF_TIME_END: time_end,
+                CONF_TRAIN_COUNT: train_count,
+            }
+        )
 
         hass.config_entries.async_update_entry(
             entry,
@@ -82,7 +85,7 @@ async def async_migrate_entry(hass: HomeAssistant, entry: SncfDataConfigEntry) -
         subentry = ConfigSubentry(
             title=f"Trajet: {dep_name} → {arr_name} ({time_start} - {time_end})",
             data=subentry_data,
-            subentry_id=subentry_id,
+            subentry_id=f"{entry.entry_id}_MIGRATE",
             subentry_type="train",
             unique_id=f"{from_}_{to_}_{time_start}_{time_end}",
         )
