@@ -1,8 +1,8 @@
 """Calendar for trains hours."""
 
+import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-import logging
 
 from homeassistant.components.calendar import CalendarEntity, CalendarEvent
 from homeassistant.core import HomeAssistant, callback
@@ -75,7 +75,7 @@ class SNCFCalendar(CoordinatorEntity[SncfUpdateCoordinator], CalendarEntity):
         """Handle updated data from the coordinator."""
         if self._fetch_journeys():
             self._event = min(
-                self._fetch_journeys(), key=lambda x: abs(x.start - datetime.now())
+                self._fetch_journeys(), key=lambda x: abs(x.start.replace(tzinfo=None) - datetime.now())
             )
             if self._event:
                 self._attr_extra_state_attributes = {
