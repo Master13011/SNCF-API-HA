@@ -30,19 +30,25 @@ async def async_setup_entry(
 
     coordinator: SncfUpdateCoordinator = entry.runtime_data
 
+    # Capteur global "Trajets"
     async_add_entities([SncfJourneySensor(coordinator)], update_before_add=True)
 
     for subentry in entry.subentries.values():
-        journeys = coordinator.data[subentry.subentry_id]
-        display_count = min(len(journeys), subentry.data["train_count"])
+        journeys = coordinator.data.get(subentry.subentry_id, [])
+        display_count = min(len(journeys), subentry.data.get("train_count", 0))
         sensors = []
+
+        # Capteurs individuels pour chaque train
         for idx in range(display_count):
             sensors.append(SncfTrainSensor(coordinator, subentry.subentry_id, idx))
 
+        # Capteur résumé ligne par ligne
+        sensors.append(SncfAllTrainsLineSensor(coordinator, subentry.subentry_id))
+
+        # Ajouter tous les capteurs de cette subentry au même niveau
         async_add_entities(
             sensors, config_subentry_id=subentry.subentry_id, update_before_add=True
         )
-
 
 # --- Sensor Classes ---
 
@@ -158,3 +164,58 @@ class SncfTrainSensor(CoordinatorEntity[SncfUpdateCoordinator], SensorEntity):
             ),
             "train_num": get_train_num(journey),
         }
+
+class SncfAllTrainsLineSensor(CoordinatorEntity[SncfUpdateCoordinator], SensorEntity):
+    """Sensor that aggregates all trains on a single line per attribute."""
+
+    _attr_has_entity_name = True
+    _attr_icon = "mdi:train"
+    _attr_attribution = ATTRIBUTION
+
+    def __init__(self, coordinator: SncfUpdateCoordinator, train_id: str) -> None:
+        """Initialize the line sensor."""
+        super().__init__(coordinator)
+        self.tid = train_id
+        self._attr_name = "Tous les trains (ligne)"
+        self._attr_unique_id = f"{train_id}_all_trains_line"
+        self._attr_device_info = {
+            "identifiers": {(DOMAIN, train_id)},
+            "name": "SNCF",
+            "manufacturer": "Master13011",
+            "model": "API",
+            "entry_type": DeviceEntryType.SERVICE,
+        }
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Update all trains values on a single line."""
+        journeys = self.coordinator.data.get(self.tid, [])
+        departure_times = []
+        base_departure_times = []
+        delays = []
+        overall_has_delay = False
+
+        for journey in journeys:
+            section = journey.get("sections", [{}])[0]
+            arr_dt = parse_datetime(journey.get("arrival_date_time", ""))
+            base_arr_dt = parse_datetime(section.get("base_arrival_date_time"))
+            delay = int((arr_dt - base_arr_dt).total_seconds() / 60) if arr_dt and base_arr_dt else 0
+
+            departure_times.append(format_time(journey.get("departure_date_time", "")))
+            base_departure_times.append(format_time(section.get("base_departure_date_time")))
+            delays.append(str(delay))
+
+            if delay > 0:
+                overall_has_delay = True
+
+        self._attr_extra_state_attributes = {
+            "departure_time": "; ".join(departure_times),
+            "base_departure_time": "; ".join(base_departure_times),
+            "delay_minutes": "; ".join(delays),
+            "has_delay": overall_has_delay,
+        }
+
+        # On peut mettre un "native_value" arbitraire, par exemple le nombre de trains
+        self._attr_native_value = len(journeys)
+
+        self.async_write_ha_state()
