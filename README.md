@@ -4,7 +4,7 @@
 ![Custom Component](https://img.shields.io/badge/Custom%20Component-oui-orange)
 ![Licence MIT](https://img.shields.io/badge/Licence-MIT-green)
 
-Suivez les horaires des trains SNCF entre deux gares dans Home Assistant, grâce à l’API officielle [SNCF](https://www.digital.sncf.com/startup/api).  
+Suivez les horaires des trains SNCF entre deux gares dans Home Assistant, grâce à l’API officielle [SNCF](https://www.digital.sncf.com/startup/api).
 Départ / arrivée, retards, durée, mode (TER…), tout est intégré dans une interface configurable et traduite.
 
 Attention : ne prend pas en compte les trains supprimés
@@ -35,6 +35,7 @@ Attention : ne prend pas en compte les trains supprimés
 2. Rechercher **SNCF Trains**
 3. Suivre les étapes :
    - Clé API SNCF
+4. Ajouter un trajet
    - Ville et gare de départ
    - Ville et gare d’arrivée
    - Plage horaire à surveiller
@@ -49,6 +50,10 @@ Une fois configurée, cliquez sur **Configurer** pour ajuster :
 
 - ⏱ Intervalle de mise à jour pendant la plage horaire
 - 🕰 Intervalle hors plage
+
+
+## 🧩 Options dynamiques pour un trajet (Reconfigurer un trajet)
+
 - 🚆 Nombre de trains affichés
 - 🕗 Heures de début et fin de surveillance
 
@@ -63,6 +68,11 @@ Obtenez votre clé ici : [https://www.digital.sncf.com/startup/api](https://www.
 1. Créez un compte ou connectez-vous
 2. Générez une clé API gratuite
 3. Utilisez-la lors de la configuration (limite de 5 000 requêtes par jour)
+
+## 🧩 Options dynamiques (Reconfigurer)
+
+Une fois configurée, cliquez sur **Reconfigurer** pour resaisir une nouvelle clé
+
 
 ---
 
@@ -83,14 +93,14 @@ Obtenez votre clé ici : [https://www.digital.sncf.com/startup/api](https://www.
 
 - `sensor.sncf_<gare_dep>_<gare_arr>`
 - `sensor.sncf_train_X_<gare_dep>_<gare_arr>`
+- `calendar.trains`
+- `sensor.sncf_tous_les_trains_ligne_X`
 
 ### Attributs du capteur principal :
 
-- Liste des trains à venir
-- Retards (min), direction, mode commercial
-- Numéro de train
-- Délai avant prochain départ
-- `trains_summary` (détail complet de chaque trajet)
+- Nombre de trajets
+- Informations les inervalles
+
 
 ### Capteurs secondaires (enfants) pour chaque train :
 
@@ -110,7 +120,7 @@ Obtenez votre clé ici : [https://www.digital.sncf.com/startup/api](https://www.
 
 **Détails du prochain train :**
 
-<img width="608" height="262" alt="attributes" src="https://github.com/user-attachments/assets/39206e2a-8f44-4393-92fe-4196427b9bf9" />
+<img width="1027" height="579" alt="image" src="https://github.com/user-attachments/assets/cfc83131-4048-4b1e-a3eb-e114e6de3f70" />
 
 **Dashboard Lovelace :**
 
@@ -124,6 +134,7 @@ Compatible avec Home Assistant `2025.8+`.
 
 Structure :
 - `__init__.py` : enregistrement de l’intégration
+- `calendar.py` : calendrier
 - `config_flow.py` : assistant UI de configuration
 - `options_flow.py` : formulaire d’options dynamiques
 - `sensor.py` : entités de capteurs
@@ -135,7 +146,7 @@ Structure :
 
 ## 👨‍💻 Auteur
 
-Développé par [Master13011](https://github.com/Master13011)  
+Développé par [Master13011](https://github.com/Master13011)
 Contributions bienvenues via **Pull Request** ou **Issues**
 
 ---

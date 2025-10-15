@@ -15,5 +15,6 @@
     "custom_components.sncf_trains"
   ],
   "requirements": [],
+  "single_config_entry": true,
   "version": "1.0.0"
 }
