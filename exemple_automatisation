@@ -1,9 +1,9 @@
 alias: Alerte Trains SNCF
 triggers:
   - entity_id:
-      - sensor.sncf_XXX
+      - sensor.sncf_tous_les_trains_ligne
+      - sensor.sncf_tous_les_trains_ligne_2
     attribute: has_delay
-    from: "false"
     to: "true"
     trigger: state
 actions:
@@ -14,11 +14,11 @@ actions:
               - condition: template
                 value_template: >
                   {% set dep_time =
-                  state_attr('sensor.sncf_train_4_XXX','departure_time')
+                  state_attr('sensor.sncf_XXXX_2','departure_time')
                   %} {% set hm = dep_time.split(' - ')[1] %} {{ hm != '07:54' }}
               - condition: state
                 entity_id: >-
-                  sensor.sncf_train_4_XXX
+                  sensor.sncf_XXXX_2
                 attribute: has_delay
                 state: "true"
         sequence:
@@ -26,7 +26,7 @@ actions:
               title: Train en retard ou supprimé
               message: |
                 Le train de 07h54 n'est pas à l'heure. Départ prévu: {{
-                  state_attr('sensor.sncf_train_4_XXX','departure_time')
+                  state_attr('sensor.sncf_XXXX_2','departure_time')
                 }}
             action: notify.notify
       - conditions:
@@ -35,11 +35,11 @@ actions:
               - condition: template
                 value_template: >
                   {% set dep_time =
-                  state_attr('sensor.sncf_train_5_XXX','departure_time')
+                  state_attr('sensor.sncf_XXXX_3','departure_time')
                   %} {% set hm = dep_time.split(' - ')[1] %} {{ hm != '08:07' }}
               - condition: state
                 entity_id: >-
-                  sensor.sncf_train_5_XXX
+                  sensor.sncf_XXX_3
                 attribute: has_delay
                 state: "true"
         sequence:
@@ -47,6 +47,6 @@ actions:
               title: Train en retard ou supprimé
               message: |
                 Le train de 08h07 n'est pas à l'heure. Départ prévu: {{
-                  state_attr('sensor.sncf_train_5_nXXX','departure_time')
+                  state_attr('sensor.sncf_XXX_3','departure_time')
                 }}
             action: notify.notify
