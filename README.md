@@ -120,7 +120,7 @@ Une fois configurée, cliquez sur **Reconfigurer** pour resaisir une nouvelle cl
 
 **Détails du prochain train :**
 
-<img width="608" height="262" alt="attributes" src="https://github.com/user-attachments/assets/39206e2a-8f44-4393-92fe-4196427b9bf9" />
+<img width="1027" height="579" alt="image" src="https://github.com/user-attachments/assets/cfc83131-4048-4b1e-a3eb-e114e6de3f70" />
 
 **Dashboard Lovelace :**
 
