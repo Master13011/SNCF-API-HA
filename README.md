@@ -93,7 +93,8 @@ Une fois configurée, cliquez sur **Reconfigurer** pour resaisir une nouvelle cl
 
 - `sensor.sncf_<gare_dep>_<gare_arr>`
 - `sensor.sncf_train_X_<gare_dep>_<gare_arr>`
-- `calebdar.trains`
+- `calendar.trains`
+- `sensor.sncf_tous_les_trains_ligne_X`
 
 ### Attributs du capteur principal :
 
