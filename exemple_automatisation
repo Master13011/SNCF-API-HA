@@ -16,41 +16,149 @@ actions:
           - condition: or
             conditions:
               - condition: template
-                value_template: >
-                  {% set dep_time =
-                  state_attr('sensor.XXX_2','departure_time')
-                  %} {% set hm = dep_time.split(' - ')[1] %} {{ hm != '07:54' }}
+                value_template: |
+                  {% set dep = state_attr(
+                    'sensor.sncf_nice_riquier_nice_monaco_monte_carlo_monaco_train_2',
+                    'departure_time'
+                  ).split(' - ')[1] %}
+                  {% set base = state_attr(
+                    'sensor.sncf_nice_riquier_nice_monaco_monte_carlo_monaco_train_2',
+                    'base_departure_time'
+                  ).split(' - ')[1] %}
+
+                  {{ dep != base }}
               - condition: state
                 entity_id: >-
-                  sensor.sncf_XXX_2
+                  sensor.sncf_nice_riquier_nice_monaco_monte_carlo_monaco_train_2
                 attribute: has_delay
                 state: "true"
         sequence:
           - data:
               title: Train en retard ou supprimé
               message: |
-                Le train de 07h54 n'est pas à l'heure. Départ prévu: {{
-                  state_attr('sensor.XXX_2','departure_time')
+                Le train de {{
+                  state_attr(
+                    'sensor.sncf_nice_riquier_nice_monaco_monte_carlo_monaco_train_2',
+                    'base_departure_time'
+                  ).split(' - ')[1]
+                }} n'est pas à l'heure.
+                Départ prévu : {{
+                  state_attr(
+                    'sensor.sncf_nice_riquier_nice_monaco_monte_carlo_monaco_train_2',
+                    'departure_time'
+                  ).split(' - ')[1]
                 }}
             action: notify.notify
       - conditions:
           - condition: or
             conditions:
               - condition: template
-                value_template: >
-                  {% set dep_time =
-                  state_attr('sensor.XXX_3','departure_time')
-                  %} {% set hm = dep_time.split(' - ')[1] %} {{ hm != '08:07' }}
+                value_template: |
+                  {% set dep = state_attr(
+                    'sensor.sncf_nice_riquier_nice_monaco_monte_carlo_monaco_train_3',
+                    'departure_time'
+                  ).split(' - ')[1] %}
+                  {% set base = state_attr(
+                    'sensor.sncf_nice_riquier_nice_monaco_monte_carlo_monaco_train_3',
+                    'base_departure_time'
+                  ).split(' - ')[1] %}
+
+                  {{ dep != base }}
               - condition: state
                 entity_id: >-
-                  sensor.sncf_XXX_3
+                  sensor.sncf_nice_riquier_nice_monaco_monte_carlo_monaco_train_3
                 attribute: has_delay
                 state: "true"
         sequence:
           - data:
               title: Train en retard ou supprimé
               message: |
-                Le train de 08h07 n'est pas à l'heure. Départ prévu: {{
-                  state_attr('sensor.XXX_3','departure_time')
+                Le train de {{
+                  state_attr(
+                    'sensor.sncf_nice_riquier_nice_monaco_monte_carlo_monaco_train_3',
+                    'base_departure_time'
+                  ).split(' - ')[1]
+                }} n'est pas à l'heure.
+                Départ prévu : {{
+                  state_attr(
+                    'sensor.sncf_nice_riquier_nice_monaco_monte_carlo_monaco_train_3',
+                    'departure_time'
+                  ).split(' - ')[1]
+                }}
+            action: notify.notify
+      - conditions:
+          - condition: or
+            conditions:
+              - condition: template
+                value_template: |
+                  {% set dep = state_attr(
+                    'sensor.sncf_monaco_monte_carlo_monaco_nice_riquier_nice_train_2',
+                    'departure_time'
+                  ).split(' - ')[1] %}
+                  {% set base = state_attr(
+                    'sensor.sncf_monaco_monte_carlo_monaco_nice_riquier_nice_train_2',
+                    'base_departure_time'
+                  ).split(' - ')[1] %}
+
+                  {{ dep != base }}
+              - condition: state
+                entity_id: >-
+                  sensor.sncf_monaco_monte_carlo_monaco_nice_riquier_nice_train_2
+                attribute: has_delay
+                state:
+                  - "true"
+        sequence:
+          - data:
+              title: Train en retard ou supprimé
+              message: |
+                Le train de {{
+                  state_attr(
+                    'sensor.sncf_monaco_monte_carlo_monaco_nice_riquier_nice_train_2',
+                    'base_departure_time'
+                  ).split(' - ')[1]
+                }} n'est pas à l'heure.
+                Départ prévu : {{
+                  state_attr(
+                    'sensor.sncf_monaco_monte_carlo_monaco_nice_riquier_nice_train_2',
+                    'departure_time'
+                  ).split(' - ')[1]
+                }}
+            action: notify.notify
+      - conditions:
+          - condition: or
+            conditions:
+              - condition: template
+                value_template: |
+                  {% set dep = state_attr(
+                    'sensor.sncf_monaco_monte_carlo_monaco_nice_riquier_nice_train_3',
+                    'departure_time'
+                  ).split(' - ')[1] %}
+                  {% set base = state_attr(
+                    'sensor.sncf_monaco_monte_carlo_monaco_nice_riquier_nice_train_3',
+                    'base_departure_time'
+                  ).split(' - ')[1] %}
+
+                  {{ dep != base }}
+              - condition: state
+                entity_id: >-
+                  sensor.sncf_monaco_monte_carlo_monaco_nice_riquier_nice_train_3
+                attribute: has_delay
+                state:
+                  - "true"
+        sequence:
+          - data:
+              title: Train en retard ou supprimé
+              message: |
+                Le train de {{
+                  state_attr(
+                    'sensor.sncf_monaco_monte_carlo_monaco_nice_riquier_nice_train_3',
+                    'base_departure_time'
+                  ).split(' - ')[1]
+                }} n'est pas à l'heure.
+                Départ prévu : {{
+                  state_attr(
+                    'sensor.sncf_monaco_monte_carlo_monaco_nice_riquier_nice_train_3',
+                    'departure_time'
+                  ).split(' - ')[1]
                 }}
             action: notify.notify
