@@ -7,10 +7,12 @@ from homeassistant.exceptions import ConfigEntryAuthFailed
 API_BASE = "https://api.sncf.com"
 _LOGGER = logging.getLogger(__name__)
 
+
 def encode_token(api_key: str) -> str:
     """Encode the API key for Basic Auth."""
     token_str = f"{api_key}:"
     return base64.b64encode(token_str.encode()).decode()
+
 
 class SncfApiClient:
     def __init__(self, session: ClientSession, api_key: str, timeout: int = 10):
@@ -18,25 +20,30 @@ class SncfApiClient:
         self._token = encode_token(api_key)
         self._timeout = timeout
 
-    async def fetch_departures(self, stop_id: str, max_results: int = 10) -> Optional[List[dict]]:
+    async def fetch_departures(
+        self, stop_id: str, max_results: int = 10
+    ) -> Optional[List[dict]]:
         if stop_id.startswith("stop_area:"):
             url = f"{API_BASE}/v1/coverage/sncf/stop_areas/{stop_id}/departures"
         elif stop_id.startswith("stop_point:"):
             url = f"{API_BASE}/v1/coverage/sncf/stop_points/{stop_id}/departures"
         else:
             raise ValueError("stop_id must start with 'stop_area:' or 'stop_point:'")
-        
+
         params_raw: dict[str, object] = {
             "data_freshness": "realtime",
             "count": max_results,
         }
         params: Mapping[str, str] = {k: str(v) for k, v in params_raw.items()}
-    
+
         headers = {"Authorization": f"Basic {self._token}"}
-        
+
         try:
             async with self._session.get(
-                url, headers=headers, params=params, timeout=ClientTimeout(total=self._timeout)
+                url,
+                headers=headers,
+                params=params,
+                timeout=ClientTimeout(total=self._timeout),
             ) as resp:
                 if resp.status == 401:
                     # vrai problème d'auth
@@ -44,7 +51,9 @@ class SncfApiClient:
                 if resp.status == 429:
                     # rate-limit => pas une auth failure
                     _LOGGER.warning("API rate limit (429) on %s with %s", url, params)
-                    raise RuntimeError("SNCF API rate-limited (429)")  # sera géré comme non-critique
+                    raise RuntimeError(
+                        "SNCF API rate-limited (429)"
+                    )  # sera géré comme non-critique
                 resp.raise_for_status()
                 data = await resp.json()
                 return data.get("departures", [])
@@ -53,7 +62,9 @@ class SncfApiClient:
             _LOGGER.debug("URL: %s, Params: %s", url, params)
             return None
 
-    async def fetch_journeys(self, from_id: str, to_id: str, datetime_str: str, count: int = 5) -> Optional[List[dict]]:
+    async def fetch_journeys(
+        self, from_id: str, to_id: str, datetime_str: str, count: int = 5
+    ) -> Optional[List[dict]]:
         url = f"{API_BASE}/v1/coverage/sncf/journeys"
         params_raw: dict[str, object] = {
             "from": from_id,
@@ -67,7 +78,12 @@ class SncfApiClient:
 
         headers = {"Authorization": f"Basic {self._token}"}
         try:
-            async with self._session.get(url, headers=headers, params=params, timeout=ClientTimeout(total=self._timeout)) as resp:
+            async with self._session.get(
+                url,
+                headers=headers,
+                params=params,
+                timeout=ClientTimeout(total=self._timeout),
+            ) as resp:
                 if resp.status == 401:
                     raise ConfigEntryAuthFailed("Unauthorized: check your API key.")
                 if resp.status == 429:
@@ -88,7 +104,12 @@ class SncfApiClient:
         params: Mapping[str, str] = {k: str(v) for k, v in params_raw.items()}
         headers = {"Authorization": f"Basic {self._token}"}
         try:
-            async with self._session.get(url, headers=headers, params=params, timeout=ClientTimeout(total=self._timeout)) as resp:
+            async with self._session.get(
+                url,
+                headers=headers,
+                params=params,
+                timeout=ClientTimeout(total=self._timeout),
+            ) as resp:
                 resp.raise_for_status()
                 data = await resp.json()
                 return data.get("places", [])

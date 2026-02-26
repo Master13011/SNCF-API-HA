@@ -110,11 +110,15 @@ class SncfTrainsOptionsFlowHandler(OptionsFlow):
             {
                 vol.Required(
                     CONF_UPDATE_INTERVAL,
-                    default=entry.options.get(CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL),
+                    default=entry.options.get(
+                        CONF_UPDATE_INTERVAL, DEFAULT_UPDATE_INTERVAL
+                    ),
                 ): int,
                 vol.Required(
                     CONF_OUTSIDE_INTERVAL,
-                    default=entry.options.get(CONF_OUTSIDE_INTERVAL, DEFAULT_OUTSIDE_INTERVAL),
+                    default=entry.options.get(
+                        CONF_OUTSIDE_INTERVAL, DEFAULT_OUTSIDE_INTERVAL
+                    ),
                 ): int,
             }
         )

@@ -50,6 +50,7 @@ async def async_setup_entry(
             sensors, config_subentry_id=subentry.subentry_id, update_before_add=True
         )
 
+
 # --- Sensor Classes ---
 
 
@@ -165,6 +166,7 @@ class SncfTrainSensor(CoordinatorEntity[SncfUpdateCoordinator], SensorEntity):
             "train_num": get_train_num(journey),
         }
 
+
 class SncfAllTrainsLineSensor(CoordinatorEntity[SncfUpdateCoordinator], SensorEntity):
     """Sensor that aggregates all trains on a single line per attribute."""
 
@@ -199,10 +201,16 @@ class SncfAllTrainsLineSensor(CoordinatorEntity[SncfUpdateCoordinator], SensorEn
             section = journey.get("sections", [{}])[0]
             arr_dt = parse_datetime(journey.get("arrival_date_time", ""))
             base_arr_dt = parse_datetime(section.get("base_arrival_date_time"))
-            delay = int((arr_dt - base_arr_dt).total_seconds() / 60) if arr_dt and base_arr_dt else 0
+            delay = (
+                int((arr_dt - base_arr_dt).total_seconds() / 60)
+                if arr_dt and base_arr_dt
+                else 0
+            )
 
             departure_times.append(format_time(journey.get("departure_date_time", "")))
-            base_departure_times.append(format_time(section.get("base_departure_date_time")))
+            base_departure_times.append(
+                format_time(section.get("base_departure_date_time"))
+            )
             delays.append(str(delay))
 
             if delay > 0:
