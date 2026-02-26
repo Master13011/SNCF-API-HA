@@ -145,7 +145,6 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
                 _LOGGER.error("Aucune donnée reçue de l'API SNCF pour le trajet ")
                 continue
 
-            i = count(0)
             trains.update(
                 {
                     id: [
