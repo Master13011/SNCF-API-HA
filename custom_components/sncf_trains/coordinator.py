@@ -106,9 +106,11 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
         if self.update_interval != new_interval:
             _LOGGER.debug(
                 "Update interval: %s → %s minutes",
-                None
-                if self.update_interval is None
-                else self.update_interval.total_seconds() / 60,
+                (
+                    None
+                    if self.update_interval is None
+                    else self.update_interval.total_seconds() / 60
+                ),
                 interval_minutes,
             )
             return new_interval
