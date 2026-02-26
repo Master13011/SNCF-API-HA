@@ -156,11 +156,13 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
                 }
             )
 
-        if len(update_intervals) > 0:
-            self.update_interval = min(update_intervals)
-            _LOGGER.debug(
-                "Coordinator update interval: %s minutes",
-                self.update_interval.total_seconds() / 60,
-            )
+        if update_intervals:
+            new_interval = min(update_intervals)
+            if self.update_interval != new_interval:
+                self.update_interval = new_interval
+                _LOGGER.debug(
+                    "Coordinator update interval set to %s minutes",
+                    self.update_interval.total_seconds() / 60,
+                )
 
         return trains
