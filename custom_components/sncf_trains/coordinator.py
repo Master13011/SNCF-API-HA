@@ -2,7 +2,6 @@
 
 import logging
 from datetime import timedelta
-from itertools import count
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
