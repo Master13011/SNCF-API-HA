@@ -21,11 +21,14 @@ _LOGGER = logging.getLogger(__name__)
 async def async_create_event(self, **kwargs):
     raise NotImplementedError
 
+
 async def async_delete_event(self, uid: str):
     raise NotImplementedError
 
+
 async def async_update_event(self, uid: str, event: CalendarEvent):
     raise NotImplementedError
+
 
 async def async_setup_entry(
     hass: HomeAssistant,

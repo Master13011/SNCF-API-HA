@@ -96,7 +96,6 @@ class SncfApiClient:
             _LOGGER.warning("Network error fetching journeys from SNCF API: %s", err)
             return None
 
-
     async def search_stations(self, query: str) -> Optional[List[dict]]:
         url = f"{API_BASE}/v1/coverage/sncf/places"
         params_raw: dict[str, object] = {
