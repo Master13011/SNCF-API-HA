@@ -3,7 +3,8 @@
 import logging
 from datetime import timedelta
 from typing import Any
-
+import asyncio
+from aiohttp import ClientError
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
@@ -60,7 +61,7 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
             if "401" in str(err) or "403" in str(err):
                 raise ConfigEntryAuthFailed("Clé API invalide ou expirée") from err
             _LOGGER.error("Erreur lors de la récupération des trajets SNCF: %s", err)
-            raise UpdateFailed(err)
+            raise UpdateFailed(err) from err
 
     def _build_datetime_param(self, time_start, time_end) -> str:
         """Construit le paramètre datetime pour l'API."""
@@ -120,9 +121,15 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
     async def _async_update_data(self) -> dict[str, Any]:
         """Récupère les données de l'API SNCF."""
 
+        if not self.entry.subentries:
+            _LOGGER.warning("Pas de subentries configurés")
+            return {}
+
         update_intervals = []
         trains = {}
-        for id, entry in self.entry.subentries.items():
+        max_retries = 3  # nombre de tentatives
+        retry_delay = 2  # secondes entre les tentatives
+        for subentry_id, entry in self.entry.subentries.items():
             _LOGGER.debug(entry.title)
             departure = entry.data[CONF_FROM]
             arrival = entry.data[CONF_TO]
@@ -131,30 +138,32 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
 
             update_intervals.append(self._adjust_update_interval(time_start, time_end))
             datetime_str = self._build_datetime_param(time_start, time_end)
-
-            try:
-                journeys = await self.api_client.fetch_journeys(
-                    departure, arrival, datetime_str, count=10
-                )
-            except Exception as err:
-                _LOGGER.error(
-                    "Erreur lors de la récupération des trajets SNCF: %s", err
-                )
-                raise UpdateFailed(err)
+            journeys = None
+            for attempt in range(1, max_retries + 1):
+                try:
+                    journeys = await self.api_client.fetch_journeys(
+                        departure, arrival, datetime_str, count=10
+                    )
+                    if journeys is not None:
+                        break  # succès, on sort du retry
+                except (ClientError, asyncio.TimeoutError, RuntimeError) as err:
+                    _LOGGER.warning(
+                        "Erreur réseau lors de la récupération des trajets (tentative %d/%d) : %s",
+                        attempt,
+                        max_retries,
+                        err,
+                    )
+                await asyncio.sleep(retry_delay)
 
             if journeys is None or not isinstance(journeys, list):
                 _LOGGER.error("Aucune donnée reçue de l'API SNCF pour le trajet ")
                 continue
 
-            trains.update(
-                {
-                    id: [
-                        j
-                        for j in journeys
-                        if isinstance(j, dict) and len(j.get("sections", [])) == 1
-                    ]
-                }
-            )
+            trains[subentry_id] = [
+                j
+                for j in journeys
+                if isinstance(j, dict) and len(j.get("sections", [])) == 1
+            ]
 
         if update_intervals:
             new_interval = min(update_intervals)

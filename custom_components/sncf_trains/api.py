@@ -1,8 +1,9 @@
 import base64
 import logging
-from aiohttp import ClientSession, ClientTimeout
+from aiohttp import ClientSession, ClientTimeout, ClientError
 from typing import List, Optional, Mapping
 from homeassistant.exceptions import ConfigEntryAuthFailed
+import asyncio
 
 API_BASE = "https://api.sncf.com"
 _LOGGER = logging.getLogger(__name__)
@@ -57,8 +58,8 @@ class SncfApiClient:
                 resp.raise_for_status()
                 data = await resp.json()
                 return data.get("departures", [])
-        except Exception as e:
-            _LOGGER.error("Error fetching departures from SNCF API: %s", e)
+        except (ClientError, asyncio.TimeoutError) as err:
+            _LOGGER.error("Network error fetching departures from SNCF API: %s", err)
             _LOGGER.debug("URL: %s, Params: %s", url, params)
             return None
 
@@ -91,9 +92,10 @@ class SncfApiClient:
                 resp.raise_for_status()
                 data = await resp.json()
                 return data.get("journeys", [])
-        except Exception as e:
-            _LOGGER.error("Error fetching journeys from SNCF API: %s", e)
+        except (ClientError, asyncio.TimeoutError) as err:
+            _LOGGER.warning("Network error fetching journeys from SNCF API: %s", err)
             return None
+
 
     async def search_stations(self, query: str) -> Optional[List[dict]]:
         url = f"{API_BASE}/v1/coverage/sncf/places"
@@ -113,6 +115,6 @@ class SncfApiClient:
                 resp.raise_for_status()
                 data = await resp.json()
                 return data.get("places", [])
-        except Exception as e:
-            _LOGGER.error("Error searching stations from SNCF API: %s", e)
+        except (ClientError, asyncio.TimeoutError) as err:
+            _LOGGER.error("Network error searching stations from SNCF API: %s", err)
             return None

@@ -1,5 +1,6 @@
 from typing import Any
-
+import asyncio
+from aiohttp import ClientError
 import voluptuous as vol
 
 from homeassistant import config_entries
@@ -74,7 +75,7 @@ class SncfTrainsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         try:
             results = await api.search_stations("paris")
             return bool(results)
-        except Exception:
+        except (aiohttp.ClientError, asyncio.TimeoutError):
             return False
 
     @classmethod
