@@ -75,7 +75,7 @@ class SncfTrainsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         try:
             results = await api.search_stations("paris")
             return bool(results)
-        except (aiohttp.ClientError, asyncio.TimeoutError):
+        except (ClientError, asyncio.TimeoutError):
             return False
 
     @classmethod
