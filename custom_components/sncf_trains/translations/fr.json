@@ -14,7 +14,7 @@
       "invalid_api_key": "Clé API invalide. Veuillez vérifier et réessayer."
     },
     "abort": {
-      "reconfigure_successful": "Compose reconfiguré avec succès"
+      "reconfigure_successful": "Intégration reconfigurée avec succès"
     }
   },
   "options": {
@@ -65,16 +65,18 @@
           "title": "Choisissez la plage horaire",
           "data": {
             "time_start": "Heure de départ",
-            "time_end": "Heure d'arrivé",
-            "train_count": "Nombre de trains"
+            "time_end": "Heure d'arrivée",
+            "train_count": "Nombre de trains",
+            "show_route_details": "Afficher les arrêts intermédiaires"
           }
         },
         "reconfigure": {
           "title": "Choisissez la plage horaire",
           "data": {
             "time_start": "Heure de départ",
-            "time_end": "Heure d'arrivé",
-            "train_count": "Nombre de trains"
+            "time_end": "Heure d'arrivée",
+            "train_count": "Nombre de trains",
+            "show_route_details": "Afficher les arrêts intermédiaires"
           }
         }
       },

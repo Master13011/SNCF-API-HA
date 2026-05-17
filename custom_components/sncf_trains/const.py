@@ -9,6 +9,7 @@ DEFAULT_OUTSIDE_INTERVAL = 60  # minutes
 DEFAULT_TRAIN_COUNT = 5
 DEFAULT_TIME_START = "07:00"
 DEFAULT_TIME_END = "10:00"
+DEFAULT_SHOW_ROUTE_DETAILS = False
 
 ATTRIBUTION = "Data provided by api.sncf.com"
 
@@ -23,3 +24,4 @@ CONF_TIME_END = "time_end"
 CONF_TIME_START = "time_start"
 CONF_TO = "to"
 CONF_TRAIN_COUNT = "train_count"
+CONF_SHOW_ROUTE_DETAILS = "show_route_details" # NOUVEAU

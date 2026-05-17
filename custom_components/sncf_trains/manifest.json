@@ -1,12 +1,16 @@
 {
   "domain": "sncf_trains",
   "name": "SNCF Trains",
-  "after_dependencies": ["http"],
+  "after_dependencies": [
+    "http"
+  ],
   "codeowners": [
     "@Master13011"
   ],
   "config_flow": true,
-  "dependencies": ["frontend"],
+  "dependencies": [
+    "frontend"
+  ],
   "documentation": "https://github.com/Master13011/SNCF-API-HA",
   "integration_type": "service",
   "iot_class": "cloud_polling",

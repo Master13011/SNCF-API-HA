@@ -29,11 +29,13 @@ from .const import (
     CONF_TRAIN_COUNT,
     CONF_UPDATE_INTERVAL,
     CONF_OUTSIDE_INTERVAL,
+    CONF_SHOW_ROUTE_DETAILS, # NOUVEAU
     DEFAULT_OUTSIDE_INTERVAL,
     DEFAULT_TIME_END,
     DEFAULT_TIME_START,
     DEFAULT_TRAIN_COUNT,
     DEFAULT_UPDATE_INTERVAL,
+    DEFAULT_SHOW_ROUTE_DETAILS, # NOUVEAU
     DOMAIN,
 )
 
@@ -250,6 +252,8 @@ class TrainSubentryFlowHandler(ConfigSubentryFlow):
                 },
                 unique_id=unique_id,
             )
+            
+        # NOUVEAU: On ajoute l'option booléenne
         return self.async_show_form(
             step_id="time_range",
             data_schema=vol.Schema(
@@ -257,6 +261,7 @@ class TrainSubentryFlowHandler(ConfigSubentryFlow):
                     vol.Required(CONF_TIME_START, default=DEFAULT_TIME_START): str,
                     vol.Required(CONF_TIME_END, default=DEFAULT_TIME_END): str,
                     vol.Required(CONF_TRAIN_COUNT, default=DEFAULT_TRAIN_COUNT): int,
+                    vol.Optional(CONF_SHOW_ROUTE_DETAILS, default=DEFAULT_SHOW_ROUTE_DETAILS): bool,
                 }
             ),
         )
@@ -278,11 +283,15 @@ class TrainSubentryFlowHandler(ConfigSubentryFlow):
                 title=f"Trajet: {data[CONF_DEPARTURE_NAME]} → {data[CONF_ARRIVAL_NAME]} ({data[CONF_TIME_START]} - {data[CONF_TIME_END]})",
             )
 
+        # NOUVEAU: On récupère l'ancienne valeur si elle existe
+        current_show_route = config_subentry.data.get(CONF_SHOW_ROUTE_DETAILS, DEFAULT_SHOW_ROUTE_DETAILS)
+
         DATA_SCHEMA = vol.Schema(
             {
                 vol.Required(CONF_TIME_START, default=DEFAULT_TIME_START): str,
                 vol.Required(CONF_TIME_END, default=DEFAULT_TIME_END): str,
                 vol.Required(CONF_TRAIN_COUNT, default=DEFAULT_TRAIN_COUNT): int,
+                vol.Optional(CONF_SHOW_ROUTE_DETAILS, default=current_show_route): bool,
             }
         )
 
