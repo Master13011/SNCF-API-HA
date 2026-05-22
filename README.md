@@ -127,6 +127,22 @@ type: custom:sncf-train-card
 device_id: VOTRE_DEVICE_ID
 ```
 
+#### ✨ Support Multi-Devices
+
+Vous pouvez afficher les trajets de **plusieurs appareils sur une seule carte**, avec un tri chronologique par date d'arrivée :
+
+```yaml
+type: custom:sncf-train-card
+device_id:
+  - DEVICE_ID_1
+  - DEVICE_ID_2
+  - DEVICE_ID_3
+title: 'Tous Mes Trajets'
+train_lines: 10
+```
+
+> **Rétrocompatibilité** : L'ancien format (`device_id: DEVICE_ID`) continue de fonctionner et est automatiquement converti en tableau.
+
 ### 🔍 Trouver le `device_id`
 
 _S'obtient dynamiquement via la configuration visuelle._
@@ -143,7 +159,7 @@ Le `device_id` correspond à l'appareil créé lors de la configuration du traje
 
 | Paramètre | Type | Défaut | Description |
 |-----------|------|--------|-------------|
-| `device_id` | `string` | **obligatoire** | Identifiant de l'appareil SNCF (voir ci-dessus) |
+| `device_id` | `string` \| `array[string]` | **obligatoire** | Identifiant(s) de l'appareil(s) SNCF. Peut être une chaîne unique ou un tableau de plusieurs IDs (voir ci-dessus) |
 | `title` | `string` | `'Trains SNCF'` | Titre affiché en haut de la carte |
 | `train_lines` | `number` | `3` | Nombre de trains affichés simultanément |
 | `animation_duration` | `number` | `30` | Nombre de minutes avant l'arrivée en gare à partir duquel l'animation du train se déclenche (ex : `30` = animation active dans les 30 dernières minutes, `60` = dans la dernière heure) |
@@ -155,8 +171,9 @@ Le `device_id` correspond à l'appareil créé lors de la configuration du traje
 | `show_arrival_station` | `boolean` | `true` | Affiche ou masque les informations d'arrivée |
 | `arrival_station_emoji` | `string` | `'🚉'` | Emoji de la station d'arrivée |
 
-### Exemple complet
+### Exemples
 
+**Single device :**
 ```yaml
 type: custom:sncf-train-card
 device_id: abc123def456
@@ -170,6 +187,19 @@ show_arrival_station: true
 arrival_station_emoji: "🏙️"
 animation_duration: 0
 update_interval: 60000
+```
+
+**Multiple devices (fusionnés et triés par date d'arrivée) :**
+```yaml
+type: custom:sncf-train-card
+device_id:
+  - abc123def456
+  - def456ghi789
+  - ghi789jkl123
+title: "Tous Mes Trajets SNCF"
+train_lines: 10
+train_emoji: "🚄"
+update_interval: 30000
 ```
 
 ### Exemple d'affichage
