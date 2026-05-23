@@ -28,10 +28,24 @@ class SncfTrainCard extends HTMLElement {
       throw new Error('You need to define device_id');
     }
 
-    const previousDeviceId = this.config ? this.config.device_id : null;
-    const deviceIdChanged = previousDeviceId && previousDeviceId !== config.device_id;
+    // Normaliser device_id en tableau (rétrocompatibilité)
+    let normalizedDeviceId = config.device_id;
+    if (typeof normalizedDeviceId === 'string') {
+      normalizedDeviceId = [normalizedDeviceId];
+    } else if (!Array.isArray(normalizedDeviceId)) {
+      throw new Error('device_id must be a string or an array of strings');
+    }
 
-    this.config = config;
+    // Vérifier qu'il y a au moins un device_id non-vide
+    if (!normalizedDeviceId.length || !normalizedDeviceId.some(id => id)) {
+      throw new Error('You need to define at least one valid device_id');
+    }
+
+    const previousDeviceId = this.config ? this.config.device_id : null;
+    const deviceIdChanged = previousDeviceId && JSON.stringify(previousDeviceId) !== JSON.stringify(normalizedDeviceId);
+
+    // Créer une copie de la config avec le device_id normalisé
+    this.config = { ...config, device_id: normalizedDeviceId };
 
     // Forcer la mise à jour immédiate si device_id a changé
     if (deviceIdChanged) {
@@ -55,6 +69,7 @@ class SncfTrainCard extends HTMLElement {
           required: true,
           selector: {
             device: {
+              multiple: true,
               filter: {
                 integration: "sncf_trains"
               }
@@ -134,7 +149,7 @@ class SncfTrainCard extends HTMLElement {
       ],
       computeLabel: (schema) => {
         const labels = {
-          device_id: "ID du Device (obligatoire)",
+          device_id: "IDs des Devices (obligatoire - tableau de devices)",
           title: "Titre de la carte",
           train_emoji: "Emoji du train",
           train_lines: "Nombre de trains à afficher",
@@ -150,7 +165,7 @@ class SncfTrainCard extends HTMLElement {
       },
       computeHelper: (schema) => {
         const helpers = {
-          device_id: "L'identifiant unique du device SNCF à afficher",
+          device_id: "Les identifiants uniques des devices SNCF à afficher (tableau de devices)",
           title: "Le titre affiché en haut de la carte",
           train_emoji: "L'emoji représentant le train",
           train_lines: "Le nombre de trains à afficher (1-10)",
@@ -173,9 +188,9 @@ class SncfTrainCard extends HTMLElement {
    */
   static getStubConfig() {
     return {
-      device_id: '',
+      device_id: ['', ''],
       title: 'Trains SNCF',
-      train_lines: 3,
+      train_lines: 5,
       animation_duration: 30,
       update_interval: 30000,
       train_emoji_axial_symmetry: true,
@@ -289,11 +304,11 @@ class SncfTrainCard extends HTMLElement {
   }
 
   /**
-   * Récupère les entités de train associées au device_id configuré en utilisant l'API WebSocket de Home Assistant pour obtenir des données fraîches, filtre les trains qui ne sont pas encore passés, et trie les résultats par heure de départ pour n'afficher que les trains à venir, ce qui garantit que les informations affichées sont toujours à jour et pertinentes pour l'utilisateur
-   * @returns {Promise<Array>} Un tableau d'entités de train avec des données fraîches
+   * Récupère les entités de train associées aux device_id configurés en utilisant l'API WebSocket de Home Assistant pour obtenir des données fraîches, filtre les trains qui ne sont pas encore passés, et trie les résultats par heure de départ pour n'afficher que les trains à venir, ce qui garantit que les informations affichées sont toujours à jour et pertinentes pour l'utilisateur
+   * @returns {Promise<Array>} Un tableau d'entités de train avec des données fraîches, fusionnées de tous les devices et triées par date d'arrivée
    */
   async getTrainEntities() {
-    if (!this._hass) return [];
+    if (!this._hass || !this.config.device_id) return [];
 
     try {
       // Utiliser l'API Home Assistant pour récupérer toutes les entités
@@ -301,24 +316,33 @@ class SncfTrainCard extends HTMLElement {
         type: 'config/entity_registry/list'
       });
 
-      // Filtrer les entités par device_id
-      const deviceEntities = allEntityRegistry.filter(entityInfo =>
-        entityInfo.device_id === this.config.device_id
-      );
+      // Récupérer les entités pour tous les device_id
+      const allTrainEntities = [];
 
-      if (!deviceEntities || deviceEntities.length === 0) {
-        console.warn('⚠️ Aucune entité trouvée pour ce device_id dans le registre');
-        return [];
+      for (const deviceId of this.config.device_id) {
+        if (!deviceId) continue;
+
+        // Filtrer les entités par device_id
+        const deviceEntities = allEntityRegistry.filter(entityInfo =>
+          entityInfo.device_id === deviceId
+        );
+
+        if (!deviceEntities || deviceEntities.length === 0) {
+          console.warn(`⚠️ Aucune entité trouvée pour le device_id: ${deviceId}`);
+          continue;
+        }
+
+        // Récupérer les états des entités train trouvées avec données fraîches
+        const trainEntities = deviceEntities
+          .filter(entityInfo => entityInfo.entity_id.includes('train'))
+          .map(entityInfo => {
+            // Forcer la récupération de l'état frais
+            return this._hass.states[entityInfo.entity_id];
+          })
+          .filter(entity => entity?.attributes?.departure_time);
+
+        allTrainEntities.push(...trainEntities);
       }
-
-      // Récupérer les états des entités train trouvées avec données fraîches
-      const trainEntities = deviceEntities
-        .filter(entityInfo => entityInfo.entity_id.includes('train'))
-        .map(entityInfo => {
-          // Forcer la récupération de l'état frais
-          return this._hass.states[entityInfo.entity_id];
-        })
-        .filter(entity => entity?.attributes?.departure_time);
 
       // Source - https://stackoverflow.com/a/1214753
       // Posted by Kip, modified by community. See post 'Timeline' for change history
@@ -329,7 +353,7 @@ class SncfTrainCard extends HTMLElement {
 
       // Filtrer les trains qui ne sont pas encore passés
       const currentTime = new Date();
-      const upcomingTrains = trainEntities.filter(entity => {
+      const upcomingTrains = allTrainEntities.filter(entity => {
         // TODO : paramétrer le temps d'affichage max d'un train arrivé en gare
         const arrivalTime = addMinutes(this.parseTime(entity.attributes.arrival_time), 30);
         return arrivalTime >= currentTime;
@@ -511,15 +535,15 @@ class SncfTrainCard extends HTMLElement {
 
     this.shadowRoot.innerHTML = `
       ${this.renderCss()}
-      
+
       <ha-card>
         <div class="train-card">
           <div class="train-header">
             <div>${this.config.title}</div>
           </div>
-          
+
           ${this.renderTrainLines(trains)}
-          
+
         </div>
       </ha-card>
     `;
@@ -556,7 +580,7 @@ class SncfTrainCard extends HTMLElement {
       return `
         <div class="train-line">
           ${this.config.show_departure_station ? this.renderDeparture(TA) : ''}
-          
+
           <div class="train-track ${theme}">
             ${ position >= 0 ?
             `<div class="train-emoji train-emoji-axial-symmetry-${this.config.train_emoji_axial_symmetry}"
@@ -565,7 +589,7 @@ class SncfTrainCard extends HTMLElement {
             </div>` : ''
             }
           </div>
-          
+
           ${this.config.show_arrival_station ? this.renderArrival(TA) : ''}
         </div>
       `;
@@ -651,13 +675,13 @@ class SncfTrainCard extends HTMLElement {
           box-shadow: var(--ha-card-box-shadow, 0 2px 4px rgba(0,0,0,0.1));
           overflow: hidden;
         }
-      
+
         .train-card {
           display: flex;
           flex-direction: column;
           gap: 20px;
         }
-    
+
         .train-header {
           display: flex;
           align-items: center;
@@ -668,7 +692,7 @@ class SncfTrainCard extends HTMLElement {
           border-bottom: 2px solid var(--divider-color, #e0e0e0);
           padding-bottom: 10px;
         }
-      
+
         .train-line {
           display: flex;
           align-items: center;
@@ -676,7 +700,7 @@ class SncfTrainCard extends HTMLElement {
           position: relative;
           min-height: 60px;
         }
-      
+
         .train-track {
           position: relative;
           flex: 1;
@@ -688,22 +712,22 @@ class SncfTrainCard extends HTMLElement {
           box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);
           transition: background 0.3s ease;
         }
-      
+
         .train-track.delayed {
           background: linear-gradient(90deg, #ffcdd2 0%, #e57373 50%, #ffcdd2 100%);
           box-shadow: inset 0 2px 4px rgba(244,67,54,0.3);
         }
-      
+
         .train-track.running {
           background: linear-gradient(90deg, #d2cdff 0%, #7373e5 50%, #d2cdff 100%);
           box-shadow: inset 0 2px 4px rgba(54,67,244,0.3);
         }
-      
+
         .train-track.arrived {
           background: linear-gradient(90deg, #cdffd2 0%, #73e573 50%, #cdffd2 100%);
           box-shadow: inset 0 2px 4px rgba(67,244,54,0.3);
         }
-      
+
         .train-track::before {
           content: '';
           position: absolute;
@@ -721,7 +745,7 @@ class SncfTrainCard extends HTMLElement {
           transform: translateY(-50%);
           transition: background 0.3s ease;
         }
-      
+
         .train-track.delayed::before {
           background: repeating-linear-gradient(
           90deg,
@@ -731,7 +755,7 @@ class SncfTrainCard extends HTMLElement {
           transparent 20px
           );
         }
-        
+
         .train-track.running::before {
           background: repeating-linear-gradient(
           90deg,
@@ -741,7 +765,7 @@ class SncfTrainCard extends HTMLElement {
           transparent 20px
           );
         }
-        
+
         .train-track.arrived::before {
           background: repeating-linear-gradient(
           90deg,
@@ -751,7 +775,7 @@ class SncfTrainCard extends HTMLElement {
           transparent 20px
           );
         }
-      
+
         .train-emoji {
           position: absolute;
           top: -37px;
@@ -765,14 +789,14 @@ class SncfTrainCard extends HTMLElement {
         .train-emoji-axial-symmetry-true {
           transform: translateX(-50%) scaleX(-1);
         }
-      
+
         .station {
           display: flex;
           flex-direction: row;
           align-items: center;
           gap: 8px;
         }
-      
+
         .station-emoji {
           font-size: 1.8em;
           filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
@@ -783,40 +807,40 @@ class SncfTrainCard extends HTMLElement {
           flex-direction: column;
           gap: 2px;
         }
-      
+
         .arrival-time {
           font-size: 1.1em;
           font-weight: 600;
           color: var(--primary-color, #00539c);
         }
-      
+
         .arrival-time-container {
           display: flex;
           flex-direction: column;
           gap: 2px;
         }
-      
+
         .original-time {
           text-decoration: line-through;
           color: var(--secondary-text-color, #666);
           font-size: 0.9em;
         }
-      
+
         .real-time {
           color: var(--error-color, #f44336);
           font-weight: 700;
         }
-      
+
         .delay-info {
           font-size: 0.8em;
           font-weight: 600;
           margin-top: 2px;
         }
-      
+
         .on-time {
           color: var(--success-color, #4caf50);
         }
-      
+
         .error {
           color: var(--error-color, #f44336);
           text-align: center;
