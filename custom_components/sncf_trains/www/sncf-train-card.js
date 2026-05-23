@@ -1,5 +1,5 @@
 // Ajouter au registre des cartes personnalisées
-globalThis.customCards ||= []
+globalThis.customCards = globalThis.customCards || []
 globalThis.customCards.push({
   type: 'sncf-train-card',
   name: 'SNCF Train Card',
@@ -473,27 +473,6 @@ class SncfTrainCard extends HTMLElement {
   }
 
   /**
-   * Calcule l'heure d'arrivée réelle en ajoutant les minutes de retard à l'heure de départ prévue, et retourne une chaîne formatée de l'heure d'arrivée réelle, ou null si les données nécessaires sont manquantes ou si le train n'a pas de retard.
-   * @param departureTime - L'heure de départ
-   * @param delayMinutes - Le temps de retard en minutes
-   * @returns {string} Une chaîne représentant l'heure avec retard formatée ou null
-   */
-  // TODO : tester si encore utile ?
-  calculateRealArrivalTime(departureTime, delayMinutes) {
-    if (!departureTime || !delayMinutes || delayMinutes === 0) {
-      return null;
-    }
-
-    const originalTime = this.parseTime(departureTime);
-    const realTime = new Date(originalTime.getTime() + (delayMinutes * 60000)); // Ajouter les minutes de retard
-
-    return realTime.toLocaleTimeString('fr-FR', {
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  }
-
-  /**
    * Calcule la couleur du train en fonction du retard
    * @param {number} delayMinutes - Le nombre de minutes de retard
    * @param {boolean} hasDelay - Indique si le train a du retard ou non
@@ -567,7 +546,7 @@ class SncfTrainCard extends HTMLElement {
    * @returns {string} Une chaîne HTML représentant la section complète du train
    */
   renderTrainLines(trains) {
-    return trains.map((train, index) => {
+    return trains.map(train => {
       const TA = train.attributes;
       const position = this.calculateTrainPosition(TA);
       const delayMinutes = TA.delay_minutes || 0;
