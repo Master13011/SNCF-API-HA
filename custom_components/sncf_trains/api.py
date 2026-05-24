@@ -22,7 +22,7 @@ class SncfApiClient:
         self._timeout = timeout
 
     async def fetch_departures(
-            self, stop_id: str, max_results: int = 10
+        self, stop_id: str, max_results: int = 10
     ) -> Optional[List[dict]]:
         if stop_id.startswith("stop_area:"):
             url = f"{API_BASE}/v1/coverage/sncf/stop_areas/{stop_id}/departures"
@@ -41,10 +41,10 @@ class SncfApiClient:
 
         try:
             async with self._session.get(
-                    url,
-                    headers=headers,
-                    params=params,
-                    timeout=ClientTimeout(total=self._timeout),
+                url,
+                headers=headers,
+                params=params,
+                timeout=ClientTimeout(total=self._timeout),
             ) as resp:
                 if resp.status == 401:
                     # vrai problème d'auth
@@ -64,7 +64,7 @@ class SncfApiClient:
             return None
 
     async def fetch_journeys(
-            self, from_id: str, to_id: str, datetime_str: str, count: int = 5
+        self, from_id: str, to_id: str, datetime_str: str, count: int = 5
     ) -> Optional[Dict[str, Any]]:
         url = f"{API_BASE}/v1/coverage/sncf/journeys"
         params_raw: dict[str, object] = {
@@ -80,10 +80,10 @@ class SncfApiClient:
         headers = {"Authorization": f"Basic {self._token}"}
         try:
             async with self._session.get(
-                    url,
-                    headers=headers,
-                    params=params,
-                    timeout=ClientTimeout(total=self._timeout),
+                url,
+                headers=headers,
+                params=params,
+                timeout=ClientTimeout(total=self._timeout),
             ) as resp:
                 if resp.status == 401:
                     raise ConfigEntryAuthFailed("Unauthorized: check your API key.")
@@ -106,10 +106,10 @@ class SncfApiClient:
         headers = {"Authorization": f"Basic {self._token}"}
         try:
             async with self._session.get(
-                    url,
-                    headers=headers,
-                    params=params,
-                    timeout=ClientTimeout(total=self._timeout),
+                url,
+                headers=headers,
+                params=params,
+                timeout=ClientTimeout(total=self._timeout),
             ) as resp:
                 resp.raise_for_status()
                 data = await resp.json()

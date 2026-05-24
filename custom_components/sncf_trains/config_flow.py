@@ -81,7 +81,7 @@ class SncfTrainsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     @classmethod
     @callback
     def async_get_supported_subentry_types(
-            cls, config_entry: ConfigEntry
+        cls, config_entry: ConfigEntry
     ) -> dict[str, type[ConfigSubentryFlow]]:
         """Return subentries supported by this integration."""
         return {
@@ -140,7 +140,7 @@ class TrainSubentryFlowHandler(ConfigSubentryFlow):
     config_entry: ConfigEntry | None = None
 
     async def async_step_departure_city(
-            self, user_input: dict[str, Any] | None = None
+        self, user_input: dict[str, Any] | None = None
     ) -> SubentryFlowResult:
         """Handle the departure city step."""
         errors = {}
@@ -166,7 +166,7 @@ class TrainSubentryFlowHandler(ConfigSubentryFlow):
         )
 
     async def async_step_departure_station(
-            self, user_input: dict[str, Any] | None = None
+        self, user_input: dict[str, Any] | None = None
     ) -> SubentryFlowResult:
         """Handle the departure station step."""
         if user_input is not None:
@@ -184,7 +184,7 @@ class TrainSubentryFlowHandler(ConfigSubentryFlow):
         )
 
     async def async_step_arrival_city(
-            self, user_input: dict[str, Any] | None = None
+        self, user_input: dict[str, Any] | None = None
     ) -> SubentryFlowResult:
         """Handle the arrival city step."""
         errors = {}
@@ -203,7 +203,7 @@ class TrainSubentryFlowHandler(ConfigSubentryFlow):
         )
 
     async def async_step_arrival_station(
-            self, user_input: dict[str, Any] | None = None
+        self, user_input: dict[str, Any] | None = None
     ) -> SubentryFlowResult:
         """Handle the arrival station step."""
         if user_input is not None:
@@ -221,7 +221,7 @@ class TrainSubentryFlowHandler(ConfigSubentryFlow):
         )
 
     async def async_step_time_range(
-            self, user_input: dict[str, Any] | None = None
+        self, user_input: dict[str, Any] | None = None
     ) -> SubentryFlowResult:
         """Handle the time range step."""
         if user_input is not None:
@@ -262,7 +262,7 @@ class TrainSubentryFlowHandler(ConfigSubentryFlow):
         )
 
     async def async_step_reconfigure(
-            self, user_input: dict[str, Any] | None = None
+        self, user_input: dict[str, Any] | None = None
     ) -> SubentryFlowResult:
         """User flow to modify an existing entry."""
         config_subentry = self._get_reconfigure_subentry()

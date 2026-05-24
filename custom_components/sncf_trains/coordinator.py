@@ -63,8 +63,8 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
             _LOGGER.error("Erreur lors de la récupération des trajets SNCF: %s", err)
             raise UpdateFailed(err) from err
 
-    def _build_datetime_param(self, time_start: str, time_end: str) -> str:
-        """Construit le paramètre datetime pour l'API"""
+    def _build_datetime_param(self, time_start, time_end) -> str:
+        """Construit le paramètre datetime pour l'API."""
         now = dt_util.now()
         h_start, m_start = map(int, time_start.split(":"))
         h_end, m_end = map(int, time_end.split(":"))
@@ -181,6 +181,6 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
                 _LOGGER.debug(
                     "Coordinator update interval set to %s minutes",
                     self.update_interval.total_seconds() / 60,
-                    )
+                )
 
         return trains

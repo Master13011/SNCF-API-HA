@@ -22,9 +22,9 @@ from .helpers import format_time, get_duration, get_train_num, parse_datetime
 
 
 async def async_setup_entry(
-        hass: HomeAssistant,
-        entry: SncfDataConfigEntry,
-        async_add_entities: AddEntitiesCallback,
+    hass: HomeAssistant,
+    entry: SncfDataConfigEntry,
+    async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up SNCF entities from a config entry."""
 

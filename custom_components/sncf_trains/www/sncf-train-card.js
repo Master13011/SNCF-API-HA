@@ -1,5 +1,5 @@
 // Ajouter au registre des cartes personnalisées
-globalThis.customCards = globalThis.customCards || []
+globalThis.customCards ||= []
 globalThis.customCards.push({
   type: 'sncf-train-card',
   name: 'SNCF Train Card',
@@ -382,83 +382,6 @@ class SncfTrainCard extends HTMLElement {
         allTrainEntities.push(...trainEntities);
       }
 
-      const d = new Date();
-      if (d.getMinutes() < 30) d.setHours(d.getHours()-1)
-      allTrainEntities.push({
-        entity_id: "sensor.nantes_le_pouliguen_train_11",
-        attributes: {
-          arrival_stop_id : "stop_point:SNCF:87481002:Train",
-          arrival_time : `${d.getDate()}/0${d.getMonth()+1}/${d.getFullYear()} - ${d.getHours()+1}:32`,
-          attribution : "Data provided by api.sncf.com",
-          base_arrival_time : `${d.getDate()}/0${d.getMonth()+1}/${d.getFullYear()} - ${d.getHours()+1}:02`,
-          base_departure_time : `${d.getDate()}/0${d.getMonth()+1}/${d.getFullYear()} - ${d.getHours()}:00`,
-          commercial_mode : "Aléop",
-          delay_cause: "Perturbation de lignes férroviaires",
-          delay_minutes : 24,
-          departure_stop_id : "stop_point:SNCF:87481762:Train",
-          departure_time : `${d.getDate()}/0${d.getMonth()+1}/${d.getFullYear()} - ${d.getHours()}:30`,
-          device_class : "timestamp",
-          direction : "Nantes (Nantes)",
-          duration_minutes : 67,
-          friendly_name : "Le Pouliguen → Nantes Train 7",
-          has_delay : true,
-          icon : "mdi:train",
-          physical_mode : "TER / Intercités",
-          train_num: "858060",
-          stops_schedule: [
-            {
-              "name": "Le Pouliguen",
-              "time": `${d.getHours()}:30`,
-              "base_time": `${d.getHours()}:00`,
-              "amended_time": `${d.getHours()}:30`,
-              "effect": "unchanged"
-            },
-            {
-              "name": "La Baule-Escoublac",
-              "time": `${d.getHours()}:35`,
-              "base_time": `${d.getHours()}:05`,
-              "amended_time": `${d.getHours()}:35`,
-              "effect": "unchanged"
-            },
-            {
-              "name": "La Baule Les Pins",
-              "time": `${d.getHours()}:38`,
-              "base_time": `${d.getHours()}:08`,
-              "amended_time": `${d.getHours()}:38`,
-              "effect": "unchanged"
-            },
-            {
-              "name": "Pornichet",
-              "time": `${d.getHours()}:42`,
-              "base_time": `${d.getHours()}:12`,
-              "amended_time": `${d.getHours()}:42`,
-              "effect": "unchanged"
-            },
-            {
-              "name": "Saint-Nazaire",
-              "time": `${d.getHours()}:54`,
-              "base_time": `${d.getHours()}:24`,
-              "amended_time": `${d.getHours()}:54`,
-              "effect": "unchanged"
-            },
-            {
-              "name": "Savenay",
-              "time": `${d.getHours()+1 >= 24 ? '0' + (d.getHours()-23) : d.getHours()+1}:08`,
-              "base_time": `${d.getHours()}:38`,
-              "amended_time": `${d.getHours()+1 >= 24 ? '0' + (d.getHours()-23) : d.getHours()+1}:08`,
-              "effect": "unchanged"
-            },
-            {
-              "name": "Nantes",
-              "time": `${d.getHours()+1 >= 24 ? '0' + (d.getHours()-23) : d.getHours()+1}:32`,
-              "base_time": `${d.getHours()+1 >= 24 ? '0' + (d.getHours()-23) : d.getHours()+1}:02`,
-              "amended_time": `${d.getHours()+1 >= 24 ? '0' + (d.getHours()-23) : d.getHours()+1}:32`,
-              "effect": "unchanged"
-            }
-          ]
-        }
-      });
-
       // Source - https://stackoverflow.com/a/1214753
       // Posted by Kip, modified by community. See post 'Timeline' for change history
       // Retrieved 2026-05-15, License - CC BY-SA 4.0
@@ -478,8 +401,7 @@ class SncfTrainCard extends HTMLElement {
         const aTime = this.parseTime(a.attributes.arrival_time);
         const bTime = this.parseTime(b.attributes.arrival_time);
         return aTime - bTime;
-      })
-        .slice(0, this.config.settings.train_lines);
+      }).slice(0, this.config.settings.train_lines);
 
     } catch (error) {
       console.error('❌ Erreur lors de la récupération via API:', error);
