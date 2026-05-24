@@ -61,8 +61,7 @@
           "data": {
             "time_start": "Time start",
             "time_end": "Time end",
-            "train_count": "Trains count",
-            "show_route_details": "Show intermediate stops"
+            "train_count": "Trains count"
           }
         },
         "reconfigure": {
@@ -70,8 +69,7 @@
           "data": {
             "time_start": "Time start",
             "time_end": "Time end",
-            "train_count": "Trains count",
-            "show_route_details": "Show intermediate stops"
+            "train_count": "Trains count"
           }
         }
       },

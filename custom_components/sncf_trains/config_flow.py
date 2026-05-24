@@ -29,13 +29,11 @@ from .const import (
     CONF_TRAIN_COUNT,
     CONF_UPDATE_INTERVAL,
     CONF_OUTSIDE_INTERVAL,
-    CONF_SHOW_ROUTE_DETAILS, # NOUVEAU
     DEFAULT_OUTSIDE_INTERVAL,
     DEFAULT_TIME_END,
     DEFAULT_TIME_START,
     DEFAULT_TRAIN_COUNT,
     DEFAULT_UPDATE_INTERVAL,
-    DEFAULT_SHOW_ROUTE_DETAILS, # NOUVEAU
     DOMAIN,
 )
 
@@ -83,7 +81,7 @@ class SncfTrainsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     @classmethod
     @callback
     def async_get_supported_subentry_types(
-        cls, config_entry: ConfigEntry
+            cls, config_entry: ConfigEntry
     ) -> dict[str, type[ConfigSubentryFlow]]:
         """Return subentries supported by this integration."""
         return {
@@ -142,7 +140,7 @@ class TrainSubentryFlowHandler(ConfigSubentryFlow):
     config_entry: ConfigEntry | None = None
 
     async def async_step_departure_city(
-        self, user_input: dict[str, Any] | None = None
+            self, user_input: dict[str, Any] | None = None
     ) -> SubentryFlowResult:
         """Handle the departure city step."""
         errors = {}
@@ -168,7 +166,7 @@ class TrainSubentryFlowHandler(ConfigSubentryFlow):
         )
 
     async def async_step_departure_station(
-        self, user_input: dict[str, Any] | None = None
+            self, user_input: dict[str, Any] | None = None
     ) -> SubentryFlowResult:
         """Handle the departure station step."""
         if user_input is not None:
@@ -186,7 +184,7 @@ class TrainSubentryFlowHandler(ConfigSubentryFlow):
         )
 
     async def async_step_arrival_city(
-        self, user_input: dict[str, Any] | None = None
+            self, user_input: dict[str, Any] | None = None
     ) -> SubentryFlowResult:
         """Handle the arrival city step."""
         errors = {}
@@ -205,7 +203,7 @@ class TrainSubentryFlowHandler(ConfigSubentryFlow):
         )
 
     async def async_step_arrival_station(
-        self, user_input: dict[str, Any] | None = None
+            self, user_input: dict[str, Any] | None = None
     ) -> SubentryFlowResult:
         """Handle the arrival station step."""
         if user_input is not None:
@@ -223,7 +221,7 @@ class TrainSubentryFlowHandler(ConfigSubentryFlow):
         )
 
     async def async_step_time_range(
-        self, user_input: dict[str, Any] | None = None
+            self, user_input: dict[str, Any] | None = None
     ) -> SubentryFlowResult:
         """Handle the time range step."""
         if user_input is not None:
@@ -252,8 +250,6 @@ class TrainSubentryFlowHandler(ConfigSubentryFlow):
                 },
                 unique_id=unique_id,
             )
-            
-        # NOUVEAU: On ajoute l'option booléenne
         return self.async_show_form(
             step_id="time_range",
             data_schema=vol.Schema(
@@ -261,13 +257,12 @@ class TrainSubentryFlowHandler(ConfigSubentryFlow):
                     vol.Required(CONF_TIME_START, default=DEFAULT_TIME_START): str,
                     vol.Required(CONF_TIME_END, default=DEFAULT_TIME_END): str,
                     vol.Required(CONF_TRAIN_COUNT, default=DEFAULT_TRAIN_COUNT): int,
-                    vol.Optional(CONF_SHOW_ROUTE_DETAILS, default=DEFAULT_SHOW_ROUTE_DETAILS): bool,
                 }
             ),
         )
 
     async def async_step_reconfigure(
-        self, user_input: dict[str, Any] | None = None
+            self, user_input: dict[str, Any] | None = None
     ) -> SubentryFlowResult:
         """User flow to modify an existing entry."""
         config_subentry = self._get_reconfigure_subentry()
@@ -283,15 +278,11 @@ class TrainSubentryFlowHandler(ConfigSubentryFlow):
                 title=f"Trajet: {data[CONF_DEPARTURE_NAME]} → {data[CONF_ARRIVAL_NAME]} ({data[CONF_TIME_START]} - {data[CONF_TIME_END]})",
             )
 
-        # NOUVEAU: On récupère l'ancienne valeur si elle existe
-        current_show_route = config_subentry.data.get(CONF_SHOW_ROUTE_DETAILS, DEFAULT_SHOW_ROUTE_DETAILS)
-
         DATA_SCHEMA = vol.Schema(
             {
                 vol.Required(CONF_TIME_START, default=DEFAULT_TIME_START): str,
                 vol.Required(CONF_TIME_END, default=DEFAULT_TIME_END): str,
                 vol.Required(CONF_TRAIN_COUNT, default=DEFAULT_TRAIN_COUNT): int,
-                vol.Optional(CONF_SHOW_ROUTE_DETAILS, default=current_show_route): bool,
             }
         )
 

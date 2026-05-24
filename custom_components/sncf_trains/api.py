@@ -22,7 +22,7 @@ class SncfApiClient:
         self._timeout = timeout
 
     async def fetch_departures(
-        self, stop_id: str, max_results: int = 20
+            self, stop_id: str, max_results: int = 10
     ) -> Optional[List[dict]]:
         if stop_id.startswith("stop_area:"):
             url = f"{API_BASE}/v1/coverage/sncf/stop_areas/{stop_id}/departures"
@@ -41,16 +41,20 @@ class SncfApiClient:
 
         try:
             async with self._session.get(
-                url,
-                headers=headers,
-                params=params,
-                timeout=ClientTimeout(total=self._timeout),
+                    url,
+                    headers=headers,
+                    params=params,
+                    timeout=ClientTimeout(total=self._timeout),
             ) as resp:
                 if resp.status == 401:
+                    # vrai problème d'auth
                     raise ConfigEntryAuthFailed("Unauthorized: check your API key.")
                 if resp.status == 429:
+                    # rate-limit => pas une auth failure
                     _LOGGER.warning("API rate limit (429) on %s with %s", url, params)
-                    raise RuntimeError("SNCF API rate-limited (429)")
+                    raise RuntimeError(
+                        "SNCF API rate-limited (429)"
+                    )  # sera géré comme non-critique
                 resp.raise_for_status()
                 data = await resp.json()
                 return data.get("departures", [])
@@ -60,8 +64,8 @@ class SncfApiClient:
             return None
 
     async def fetch_journeys(
-        self, from_id: str, to_id: str, datetime_str: str, count: int = 20
-    ) -> Optional[Dict[str, Any]]: # 👈 On change le type de retour
+            self, from_id: str, to_id: str, datetime_str: str, count: int = 5
+    ) -> Optional[Dict[str, Any]]:
         url = f"{API_BASE}/v1/coverage/sncf/journeys"
         params_raw: dict[str, object] = {
             "from": from_id,
@@ -76,10 +80,10 @@ class SncfApiClient:
         headers = {"Authorization": f"Basic {self._token}"}
         try:
             async with self._session.get(
-                url,
-                headers=headers,
-                params=params,
-                timeout=ClientTimeout(total=self._timeout),
+                    url,
+                    headers=headers,
+                    params=params,
+                    timeout=ClientTimeout(total=self._timeout),
             ) as resp:
                 if resp.status == 401:
                     raise ConfigEntryAuthFailed("Unauthorized: check your API key.")
@@ -87,7 +91,7 @@ class SncfApiClient:
                     raise RuntimeError("Quota exceeded: 429 Too Many Requests.")
                 resp.raise_for_status()
                 data = await resp.json()
-                return data # 👈 ON RETOURNE TOUT LE JSON !
+                return data
         except (ClientError, asyncio.TimeoutError) as err:
             _LOGGER.warning("Network error fetching journeys from SNCF API: %s", err)
             return None
@@ -102,10 +106,10 @@ class SncfApiClient:
         headers = {"Authorization": f"Basic {self._token}"}
         try:
             async with self._session.get(
-                url,
-                headers=headers,
-                params=params,
-                timeout=ClientTimeout(total=self._timeout),
+                    url,
+                    headers=headers,
+                    params=params,
+                    timeout=ClientTimeout(total=self._timeout),
             ) as resp:
                 resp.raise_for_status()
                 data = await resp.json()
