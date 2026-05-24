@@ -107,8 +107,6 @@ class SncfTrainSensor(CoordinatorEntity[SncfUpdateCoordinator], SensorEntity):
         self.journey = coordinator.data[train_id][journey_id]
         self.sections = self.journey.get("sections", [{}])[0]
         departure_time = parse_datetime(self.sections.get("base_departure_date_time", ""))
-        dep_name = entry.data[CONF_DEPARTURE_NAME]
-        arr_name = entry.data[CONF_ARRIVAL_NAME]
 
         self.departure = entry.data[CONF_FROM]
         self.arrival = entry.data[CONF_TO]
