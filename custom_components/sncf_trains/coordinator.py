@@ -73,8 +73,6 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
 
         if now > dt_end:
             dt_start += timedelta(days=1)
-        elif now > dt_start:
-            dt_start = now
 
         return dt_start.strftime("%Y%m%dT%H%M%S")
 

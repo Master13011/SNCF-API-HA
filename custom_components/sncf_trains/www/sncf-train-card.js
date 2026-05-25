@@ -728,11 +728,13 @@ class SncfTrainCard extends HTMLElement {
     }).map(stop => {
       const isDeleted = stop.effect === 'deleted';
       const isAdded = stop.effect === 'added';
+      const isPassed = now > this.parseTime(stop.time);
       // TODO : s'assurer de l'utilité de amended_time par rapport à time / base_time
       const isStopDelayed = this.config.settings.show_route_details && stop.amended_time && stop.base_time && (stop.amended_time !== stop.base_time);
+      const theme = isPassed ? 'passed' : isDeleted ? 'deleted' : isAdded ? 'added' : isStopDelayed ? 'delayed' : '';
 
       const displayTime = isStopDelayed ?
-        `<span class="base-time-radar">${stop.base_time}</span><span class="amended-time-radar">${stop.amended_time}</span>` :
+        `<span class="base-time-radar ${theme}">${stop.base_time}</span><span class="amended-time-radar ${theme}">${stop.amended_time}</span>` :
         `<span>${stop.base_time || stop.time}</span>`;
 
       let statusBadge = "";
@@ -744,12 +746,13 @@ class SncfTrainCard extends HTMLElement {
 
       return `
         <div class="timeline-stop">
-          <div class="timeline-dot ${isDeleted?'deleted-dot':(isAdded?'added-dot':(isStopDelayed?'delayed-dot':''))}"></div>
+          <div class="timeline-dot ${theme}"></div>
           <div class="timeline-time">
             ${displayTime}
           </div>
-          <div class="timeline-name" style="${isDeleted?'text-decoration:line-through;opacity:0.5':''}">
-            ${stop.name}${statusBadge}
+          <div class="timeline-name ${theme}">
+            ${stop.name}
+            ${statusBadge}
           </div>
         </div>
       `;
@@ -1025,14 +1028,18 @@ class SncfTrainCard extends HTMLElement {
         .timeline-container { display: flex; justify-content: space-between; position: relative; z-index: 2; }
         .timeline-stop { display: flex; flex-direction: column; align-items: center; width: 90px; }
         .timeline-dot { width: 14px; height: 14px; border-radius: 50%; background: var(--card-background-color); border: 3px solid var(--primary-color); margin-bottom: 6px; box-sizing: border-box; }
-        .timeline-dot.delayed-dot { border-color: #ff9800; }
-        .timeline-dot.deleted-dot { background: #f44336; border-color: #f44336; }
-        .timeline-dot.added-dot { border-color: #ff9800; border-style: dashed; }
+        .timeline-dot.delayed { border-color: #ff9800; }
+        .timeline-dot.passed { border-color: #747474; }
+        .timeline-dot.deleted { background: #f44336; border-color: #f44336; }
+        .timeline-dot.added { border-color: #ff9800; border-style: dashed; }
         .timeline-time { font-size: 0.75em; font-weight: bold; display: contents; }
         .base-time-radar { text-decoration: line-through; opacity: 0.5; font-size: 0.9em; }
+        .base-time-radar.passed { display: none; }
         .amended-time-radar { color: #ff9800; font-weight: bold; }
-        .timeline-name { font-size: 0.65em; text-align: center; color: var(--secondary-text-color); line-height: 1.2; }
-        .badge-stop { font-size: 0.8em; font-weight: bold; padding: 1px 3px; border-radius: 3px; color: white; }
+        .amended-time-radar.passed { color: #747474; font-weight: bold; }
+        .timeline-name { font-size: 0.65em; text-align: center; color: var(--secondary-text-color); line-height: 1.2; display: flex; flex-direction: column; align-items: center; }
+        .timeline-name.deleted { text-decoration: line-through; opacity: 0.5; }
+        .badge-stop { font-size: 0.8em; font-weight: bold; padding: 1px 3px; border-radius: 3px; color: white; width: fit-content; }
         .badge-stop.deleted { background: #f44336; }
         .badge-stop.added { background: #ff9800; }
       </style>
