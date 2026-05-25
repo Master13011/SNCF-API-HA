@@ -8,6 +8,9 @@ globalThis.customCards.push({
   configurable: true
 });
 
+class MissingConfigError extends Error {}
+class InvalidConfigTypeError extends TypeError {}
+
 class SncfTrainCard extends HTMLElement {
   constructor() {
     super();
@@ -28,24 +31,12 @@ class SncfTrainCard extends HTMLElement {
       throw new Error('You need to define device_id');
     }
 
-    // Normaliser device_id en tableau (rétrocompatibilité)
-    let normalizedDeviceId = config.device_id;
-    if (typeof normalizedDeviceId === 'string') {
-      normalizedDeviceId = [normalizedDeviceId];
-    } else if (!Array.isArray(normalizedDeviceId)) {
-      throw new Error('device_id must be a string or an array of strings');
-    }
+    config = this.migrateConfig(config);
 
-    // Vérifier qu'il y a au moins un device_id non-vide
-    if (!normalizedDeviceId.length || !normalizedDeviceId.some(id => id)) {
-      throw new Error('You need to define at least one valid device_id');
-    }
+    const previousDeviceId = this.config?.device_id ?? null;
+    const deviceIdChanged = previousDeviceId && JSON.stringify(previousDeviceId) !== JSON.stringify(config.device_id);
 
-    const previousDeviceId = this.config ? this.config.device_id : null;
-    const deviceIdChanged = previousDeviceId && JSON.stringify(previousDeviceId) !== JSON.stringify(normalizedDeviceId);
-
-    // Créer une copie de la config avec le device_id normalisé
-    this.config = { ...config, device_id: normalizedDeviceId };
+    this.config = { ...config };
 
     // Forcer la mise à jour immédiate si device_id a changé
     if (deviceIdChanged) {
@@ -55,6 +46,68 @@ class SncfTrainCard extends HTMLElement {
 
     // Toujours forcer un nouveau rendu
     this.render();
+  }
+
+  /**
+   * Permet de migrer une configuration ancienne vers la nouvelle structure attendue.
+   * Pour le moment, la migration gère uniquement le bon affichage de la carte sans mettre à jour le code yaml de la carte.
+   * À voir s'il est possible de gérer une vraie migration des données.
+   * @param {object} config - La configuration actuelle de la carte à adapter
+   * @return {object} La configuration adaptée.
+   */
+  migrateConfig(config) {
+    const migrated = {...config};
+
+    // Créer `settings` si absent et transférer les champs legacy
+    if (!migrated.settings) {
+      const maybeSettings = {};
+      maybeSettings.title = migrated.title;
+      maybeSettings.train_lines = migrated.train_lines;
+      maybeSettings.show_route_details = migrated.show_route_details ?? false;
+
+      migrated.settings = {...maybeSettings};
+    }
+
+    // Créer `display` si absent et transférer les champs legacy
+    if (!migrated.display) {
+      const maybeDisplay = {};
+      maybeDisplay.number_of_stops = migrated.number_of_stops ?? 7;
+      maybeDisplay.train_emoji_axial_symmetry = migrated.train_emoji_axial_symmetry;
+      maybeDisplay.train_emoji = migrated.train_emoji;
+      maybeDisplay.show_departure_station = migrated.show_departure_station;
+      maybeDisplay.departure_station_emoji = migrated.departure_station_emoji;
+      maybeDisplay.show_arrival_station = migrated.show_arrival_station;
+      maybeDisplay.arrival_station_emoji = migrated.arrival_station_emoji;
+
+      migrated.display = {...maybeDisplay};
+    }
+
+    // Normaliser device_id en tableau (rétrocompatibilité)
+    let normalizedDeviceId = config.device_id;
+    if (typeof normalizedDeviceId === 'string') {
+      normalizedDeviceId = [normalizedDeviceId];
+    } else if (!Array.isArray(normalizedDeviceId)) {
+      throw new InvalidConfigTypeError('device_id must be a string or an array of strings');
+    }
+
+    // Vérifier qu'il y a au moins un device_id non-vide
+    if (!normalizedDeviceId.length || !normalizedDeviceId.some(id => typeof id === 'string' && id.trim() !== '')) {
+      throw new MissingConfigError('You need to define at least one valid device_id');
+    }
+
+    // Nettoyer les clés legacy si nous les avons migrées
+    const legacyKeys = [
+      'title', 'train_lines', 'show_route_details',
+      'number_of_stops', 'train_emoji_axial_symmetry', 'train_emoji',
+      'show_departure_station', 'departure_station_emoji', 'show_arrival_station', 'arrival_station_emoji'
+    ];
+    for (const k of legacyKeys) {
+      if (k in migrated && (migrated.settings || migrated.display)) {
+        delete migrated[k];
+      }
+    }
+
+    return { ...migrated, device_id: normalizedDeviceId};
   }
 
   /**
@@ -77,28 +130,93 @@ class SncfTrainCard extends HTMLElement {
           }
         },
         {
-          name: "title",
-          selector: {text: {}},
+          type: 'expandable',
+          name: 'settings',
+          title: 'Options de personalisation',
+          schema: [
+            {
+              name: "title",
+              selector: {text: {}},
+            },
+            {
+              name: "train_lines",
+              selector: {
+                number: {
+                  min: 1,
+                  max: 10,
+                  step: 1,
+                },
+              },
+            },
+            {
+              name: "show_route_details",
+              selector: {boolean: {}}
+            },
+            {
+              name: "animation_duration",
+              selector: {
+                number: {
+                  min: 0,
+                  max: 100,
+                  step: 1,
+                },
+              },
+            },
+          ]
         },
         {
-          name: "train_lines",
-          selector: {
-            number: {
-              min: 1,
-              max: 10,
-              step: 1,
+          type: 'expandable',
+          name: 'display',
+          title: 'Options d\'affichage avancées',
+          schema: [
+            {
+              name: "number_of_stops",
+              selector: {
+                number: {
+                  min: 2,
+                  max: 10,
+                  step: 1,
+                },
+              },
             },
-          },
-        },
-        {
-          name: "animation_duration",
-          selector: {
-            number: {
-              min: 0,
-              max: 100,
-              step: 1,
-            },
-          },
+            {
+              type: "grid",
+              name: "",
+              column_min_width: "150px",
+              schema: [
+                {
+                  name: "train_emoji_axial_symmetry",
+                  selector: {boolean: {}},
+                },
+                {
+                  name: "train_emoji",
+                  selector: {
+                    icon: {},
+                  },
+                },
+                {
+                  name: "show_departure_station",
+                  selector: {boolean: {}},
+                },
+                {
+                  name: "departure_station_emoji",
+                  selector: {
+                    icon: {},
+                  },
+                },
+                {
+                  name: "show_arrival_station",
+                  selector: {boolean: {}},
+                },
+                {
+                  name: "arrival_station_emoji",
+                  selector: {
+                    icon: {},
+                  },
+                },
+              ]
+            }
+          ],
         },
         {
           name: "update_interval",
@@ -109,57 +227,22 @@ class SncfTrainCard extends HTMLElement {
             },
           },
         },
-        {
-          type: "grid",
-          name: "",
-          column_min_width: "150px",
-          schema: [
-            {
-              name: "train_emoji_axial_symmetry",
-              selector: {boolean: {}},
-            },
-            {
-              name: "train_emoji",
-              selector: {
-                icon: {},
-              },
-            },
-            {
-              name: "show_departure_station",
-              selector: {boolean: {}},
-            },
-            {
-              name: "departure_station_emoji",
-              selector: {
-                icon: {},
-              },
-            },
-            {
-              name: "show_arrival_station",
-              selector: {boolean: {}},
-            },
-            {
-              name: "arrival_station_emoji",
-              selector: {
-                icon: {},
-              },
-            },
-          ]
-        },
       ],
       computeLabel: (schema) => {
         const labels = {
           device_id: "IDs des Devices (obligatoire - tableau de devices)",
           title: "Titre de la carte",
-          train_emoji: "Emoji du train",
           train_lines: "Nombre de trains à afficher",
+          show_route_details: "Afficher les arrêts",
           animation_duration: "Durée d'animation (minutes)",
-          update_interval: "Intervalle de mise à jour (ms)",
-          departure_station_emoji: "Emoji de la gare de départ",
-          arrival_station_emoji: "Emoji de la gare d'arrivée",
-          show_departure_station: "Afficher les informations de départ",
-          show_arrival_station: "Afficher les informations d'arrivée",
+          number_of_stops: "Nombre d'arrêts à afficher",
           train_emoji_axial_symmetry: "Symétrie axiale du train",
+          train_emoji: "Emoji du train",
+          show_departure_station: "Afficher les informations de départ",
+          departure_station_emoji: "Emoji de la gare de départ",
+          show_arrival_station: "Afficher les informations d'arrivée",
+          arrival_station_emoji: "Emoji de la gare d'arrivée",
+          update_interval: "Intervalle de mise à jour (ms)",
         };
         return labels[schema.name] || undefined;
       },
@@ -167,15 +250,17 @@ class SncfTrainCard extends HTMLElement {
         const helpers = {
           device_id: "Les identifiants uniques des devices SNCF à afficher (tableau de devices)",
           title: "Le titre affiché en haut de la carte",
-          train_emoji: "L'emoji représentant le train",
           train_lines: "Le nombre de trains à afficher (1-10)",
+          show_route_details: "Affiche ou masque la frise des arrêts du train",
           animation_duration: "Nombre de minutes avant le départ pour que le train apparaisse",
-          update_interval: "Fréquence de rafraîchissement en millisecondes (ex: 30000 pour 30s)",
-          departure_station_emoji: "L'emoji pour la gare de départ",
-          arrival_station_emoji: "L'emoji pour la gare d'arrivée",
-          show_departure_station: "Affiche ou masque la gare de départ",
-          show_arrival_station: "Affiche ou masque la gare d'arrivée",
+          number_of_stops: "Le nombre d'arrêts à afficher dans la frise (2-10)",
           train_emoji_axial_symmetry: "Retourner l'emoji du train horizontalement",
+          train_emoji: "L'emoji représentant le train",
+          show_departure_station: "Affiche ou masque la gare de départ",
+          departure_station_emoji: "L'emoji pour la gare de départ",
+          show_arrival_station: "Affiche ou masque la gare d'arrivée",
+          arrival_station_emoji: "L'emoji pour la gare d'arrivée",
+          update_interval: "Fréquence de rafraîchissement en millisecondes (ex: 30000 pour 30s)",
         };
         return helpers[schema.name] || undefined;
       },
@@ -188,17 +273,24 @@ class SncfTrainCard extends HTMLElement {
    */
   static getStubConfig() {
     return {
-      device_id: ['', ''],
-      title: 'Trains SNCF',
-      train_lines: 5,
+      device_id: [''],
+      settings: {
+        title: 'Trains SNCF',
+        train_lines: 5,
+        // TODO rename to show_route or show_timeline ?
+        show_route_details: false,
+      },
+      display: {
+        number_of_stops: 7,
+        train_emoji_axial_symmetry: true,
+        train_emoji: '🚅',
+        show_departure_station: true,
+        departure_station_emoji: '',
+        show_arrival_station: true,
+        arrival_station_emoji: '🚉',
+      },
       animation_duration: 30,
       update_interval: 30000,
-      train_emoji_axial_symmetry: true,
-      train_emoji: '🚅',
-      show_departure_station: true,
-      departure_station_emoji: '',
-      show_arrival_station: true,
-      arrival_station_emoji: '🚉',
     };
   }
 
@@ -240,7 +332,7 @@ class SncfTrainCard extends HTMLElement {
    * Calcule la taille de la carte en fonction du nombre de lignes de train à afficher, avec une taille minimale pour éviter les problèmes d'affichage
    */
   getCardSize() {
-    return Math.max(3, this.config.train_lines + 1);
+    return Math.max(3, this.config.settings.train_lines + 1);
   }
 
   /**
@@ -312,10 +404,7 @@ class SncfTrainCard extends HTMLElement {
 
     try {
       // Utiliser l'API Home Assistant pour récupérer toutes les entités
-      const allEntityRegistry = await this._hass.callWS({
-        type: 'config/entity_registry/list'
-      });
-
+      const allEntityRegistry = await this._hass.callWS({ type: 'config/entity_registry/list' });
       // Récupérer les entités pour tous les device_id
       const allTrainEntities = [];
 
@@ -359,13 +448,11 @@ class SncfTrainCard extends HTMLElement {
         return arrivalTime >= currentTime;
       });
 
-      return upcomingTrains
-        .sort((a, b) => {
-          const aTime = this.parseTime(a.attributes.arrival_time);
-          const bTime = this.parseTime(b.attributes.arrival_time);
-          return aTime - bTime;
-        })
-        .slice(0, this.config.train_lines);
+      return upcomingTrains.toSorted((a, b) => {
+        const aTime = this.parseTime(a.attributes.arrival_time);
+        const bTime = this.parseTime(b.attributes.arrival_time);
+        return aTime - bTime;
+      }).slice(0, this.config.settings.train_lines);
 
     } catch (error) {
       console.error('❌ Erreur lors de la récupération via API:', error);
@@ -383,7 +470,7 @@ class SncfTrainCard extends HTMLElement {
       return new Date(0);
     }
 
-    // Format SNCF: "19/11/2025 - 08:20"
+    // Format date et heure : "19/11/2025 - 08:20"
     if (departureTime.includes('/') && departureTime.includes(' - ')) {
       const parts = departureTime.split(' - ');
       if (parts.length === 2) {
@@ -407,22 +494,39 @@ class SncfTrainCard extends HTMLElement {
       }
     }
 
+    // Format heure only : "08:20"
+    if (departureTime.includes(':')) {
+      const parts = departureTime.split(':');
+      if (parts.length === 2) {
+        const hour = Number.parseInt(parts[0]);
+        const minute = Number.parseInt(parts[1]);
+
+        const date = new Date();
+        if (hour > 20 && date.getHours() < 4) {
+          date.setDate(date.getDate() - 1);
+        }
+        date.setHours(hour);
+        date.setMinutes(minute);
+        return date;
+      }
+    }
+
     // Fallback vers Date classique
     return new Date(departureTime);
   }
 
   /**
    * Calcule la position du train sur la barre de progression en fonction de l'heure actuelle et de l'heure de départ, en affichant le train 30 minutes avant le départ et en le faisant avancer vers la droite à mesure que l'heure de départ approche, ce qui crée une animation visuelle intuitive pour les utilisateurs afin de suivre l'approche du train vers la gare, et retourne une position en pourcentage (0% = train à gauche, 100% = train arrivé) ou une valeur négative pour indiquer que le train n'est pas encore visible, ce qui permet de gérer l'affichage du train de manière dynamique en fonction du temps restant avant le départ
-   * @param {object} trainAttributes - Les attributs du train, qui doivent inclure au minimum une heure de départ valide pour que le calcul fonctionne correctement, et peuvent inclure d'autres informations pour personnaliser l'affichage
+   * @param {object} TA - Les attributs du train, qui doivent inclure au minimum une heure de départ valide pour que le calcul fonctionne correctement, et peuvent inclure d'autres informations pour personnaliser l'affichage
    * @returns {number} Un nombre représentant la position du train en pourcentage (0-100) ou une valeur négative si le train n'est pas encore visible
    */
-  calculateTrainPosition(trainAttributes) {
-    if (!trainAttributes.departure_time || !trainAttributes.arrival_time) {
+  calculateTrainPosition(TA) {
+    if (!TA.departure_time || !TA.arrival_time) {
       return -10;
     }
 
-    const departure = this.parseTime(trainAttributes.departure_time);
-    const arrival = this.parseTime(trainAttributes.arrival_time);
+    const departure = this.parseTime(TA.departure_time);
+    const arrival = this.parseTime(TA.arrival_time);
     const travelTime = (arrival - departure) / (1000 * 60);
 
     if (Number.isNaN(departure.getTime()) || Number.isNaN(arrival.getTime()) || travelTime < 0) {
@@ -434,7 +538,7 @@ class SncfTrainCard extends HTMLElement {
 
     if (diffMinutes > travelTime) {
       // TODO : tester et s'assurer de la véracité / nom du param animation_duration
-      if (this.config.animation_duration === 0 || this.config.animation_duration > diffMinutes - travelTime) {
+      if (this.config.settings.animation_duration === 0 || this.config.settings.animation_duration > diffMinutes - travelTime) {
         // Train apparaît X minutes avant l'heure
         return 0;
       }
@@ -467,27 +571,6 @@ class SncfTrainCard extends HTMLElement {
     }
 
     return time.toLocaleTimeString('fr-FR', {
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  }
-
-  /**
-   * Calcule l'heure d'arrivée réelle en ajoutant les minutes de retard à l'heure de départ prévue, et retourne une chaîne formatée de l'heure d'arrivée réelle, ou null si les données nécessaires sont manquantes ou si le train n'a pas de retard.
-   * @param departureTime - L'heure de départ
-   * @param delayMinutes - Le temps de retard en minutes
-   * @returns {string} Une chaîne représentant l'heure avec retard formatée ou null
-   */
-  // TODO : tester si encore utile ?
-  calculateRealArrivalTime(departureTime, delayMinutes) {
-    if (!departureTime || !delayMinutes || delayMinutes === 0) {
-      return null;
-    }
-
-    const originalTime = this.parseTime(departureTime);
-    const realTime = new Date(originalTime.getTime() + (delayMinutes * 60000)); // Ajouter les minutes de retard
-
-    return realTime.toLocaleTimeString('fr-FR', {
       hour: '2-digit',
       minute: '2-digit'
     });
@@ -539,7 +622,7 @@ class SncfTrainCard extends HTMLElement {
       <ha-card>
         <div class="train-card">
           <div class="train-header">
-            <div>${this.config.title}</div>
+            <div>${this.config.settings.title}</div>
           </div>
 
           ${this.renderTrainLines(trains)}
@@ -567,30 +650,110 @@ class SncfTrainCard extends HTMLElement {
    * @returns {string} Une chaîne HTML représentant la section complète du train
    */
   renderTrainLines(trains) {
-    return trains.map((train, index) => {
+    return trains.map(train => {
       const TA = train.attributes;
       const position = this.calculateTrainPosition(TA);
       const delayMinutes = TA.delay_minutes || 0;
-      const hasDelay = TA.has_delay || false;
+      const hasDelay = TA.has_delay;
       const isRunning = this.parseTime(TA.departure_time) < new Date() && new Date() < this.parseTime(TA.arrival_time)
       const isArrived = new Date() > this.parseTime(TA.arrival_time)
       const trainColor = this.getTrainColor(delayMinutes, hasDelay);
 
       const theme = isArrived ? 'arrived' : hasDelay ? 'delayed' : isRunning ? 'running' : '';
       return `
-        <div class="train-line">
-          ${this.config.show_departure_station ? this.renderDeparture(TA) : ''}
-
-          <div class="train-track ${theme}">
-            ${ position >= 0 ?
-            `<div class="train-emoji train-emoji-axial-symmetry-${this.config.train_emoji_axial_symmetry}"
-              style="left: ${position}%; color: ${trainColor};">
-                ${this.renderIcone(this.config.train_emoji)}
-            </div>` : ''
-            }
+        <div>
+          <div class="train-line">
+            ${this.config.display.show_departure_station ? this.renderDeparture(TA) : ''}
+  
+            <div class="train-track ${theme}">
+              ${ position >= 0 ?
+        `<div class="train-emoji train-emoji-axial-symmetry-${this.config.display.train_emoji_axial_symmetry}"
+                style="left: ${position}%; color: ${trainColor};">
+                  ${this.renderIcone(this.config.display.train_emoji)}
+              </div>` : ''
+      }
+              ${TA.delay_cause ? `<div class="delay-cause">${TA.delay_cause}</div>` : ''}
+            </div>
+  
+            ${this.config.display.show_arrival_station ? this.renderArrival(TA) : ''}
           </div>
+          ${this.config.settings.show_route_details && TA.stops_schedule ? this.renderTimeline(TA) : ''}
+        </div>`;
+    }).join('');
+  }
 
-          ${this.config.show_arrival_station ? this.renderArrival(TA) : ''}
+  /**
+   * Rendu de la timeline des arrêts d'un train, en affichant une ligne horizontale avec des points représentant les arrêts
+   * @param {object} TA - Les attributs du train
+   * @return {string} Une chaîne HTML représentant la timeline des arrêts du train
+   */
+  renderTimeline(TA) {
+    return `
+      <div class="timeline-wrapper">
+        <div class="timeline-line ${TA.hasDelay ? 'delayed-line' : ''}"></div>
+        <div class="timeline-container">
+          ${this.renderStops(TA.stops_schedule, this.parseTime(TA.departure_time) < Date.now())}
+        </div>
+      </div>
+    `;
+  }
+
+  /**
+   * Rendu de la timeline des arrêts d'un train, en affichant les arrêts futurs et les arrêts passés jusqu'à une limite
+   * de 5 arrêts, avec des styles différents pour les arrêts supprimés, ajoutés ou retardés, ce qui permet de visualiser
+   * facilement le parcours du train et les éventuels changements ou perturbations sur sa route, tout en évitant de
+   * surcharger l'affichage avec trop d'informations
+   * @param {Array} stops - Un tableau d'objets représentant les arrêts du train
+   * @param {boolean} hasStarted - Indique si le train a déjà commencé son trajet
+   * @return {string} Une chaîne HTML représentant les différents arrêts du train
+   */
+  renderStops(stops, hasStarted) {
+    const now = new Date();
+    const maxStops = this.config.display.number_of_stops;
+    let i = 0;
+    return stops.filter((stop, index) => {
+      // On conserve tous les arrêts si le nombre d'arrêts est inférieur à la limite
+      if (stops.length < maxStops) return true;
+
+      // Si le train est parti
+      if (hasStarted) {
+        // On récupère les arrêts futurs
+        if (this.parseTime(stop.time) >= now) return i++ < maxStops
+        // et les arrêts precedents jusqu'à la limite max en partant de la fin
+        if (stops.length - index <= maxStops) return i++ <= maxStops;
+      } else {
+        // Sinon, on prend les prochains arrêt jusqu'à la limite
+        return i++ < maxStops
+      }
+    }).map(stop => {
+      const isDeleted = stop.effect === 'deleted';
+      const isAdded = stop.effect === 'added';
+      const isPassed = now > this.parseTime(stop.time);
+      // TODO : s'assurer de l'utilité de amended_time par rapport à time / base_time
+      const isStopDelayed = this.config.settings.show_route_details && stop.amended_time && stop.base_time && (stop.amended_time !== stop.base_time);
+      const theme = isPassed ? 'passed' : isDeleted ? 'deleted' : isAdded ? 'added' : isStopDelayed ? 'delayed' : '';
+
+      const displayTime = isStopDelayed ?
+        `<span class="base-time-radar ${theme}">${stop.base_time}</span><span class="amended-time-radar ${theme}">${stop.amended_time}</span>` :
+        `<span>${stop.base_time || stop.time}</span>`;
+
+      let statusBadge = "";
+      if (isDeleted) {
+        statusBadge = ' <span class="badge-stop deleted">SUPPRIMÉ</span>';
+      } else if (isAdded) {
+        statusBadge = ' <span class="badge-stop added">RAJOUTÉ</span>';
+      }
+
+      return `
+        <div class="timeline-stop">
+          <div class="timeline-dot ${theme}"></div>
+          <div class="timeline-time">
+            ${displayTime}
+          </div>
+          <div class="timeline-name ${theme}">
+            ${stop.name}
+            ${statusBadge}
+          </div>
         </div>
       `;
     }).join('');
@@ -598,15 +761,15 @@ class SncfTrainCard extends HTMLElement {
 
   /**
    * Rendu de la section de départ pour un train donné, en affichant l'heure de départ prévue, l'heure de départ réelle si le train a du retard.
-   * @param {object} trainAttributes - Les attributs du train
+   * @param {object} TA - Les attributs du train
    * @returns {string} Une chaîne HTML représentant la section de départ du train
    */
-  renderDeparture(trainAttributes) {
-    const hasDelay = trainAttributes.has_delay || false;
-    const isGone = new Date() > this.parseTime(trainAttributes.departure_time)
-    const delayMinutes = trainAttributes.delay_minutes || 0;
-    const departureTime = this.formatTime(trainAttributes.base_departure_time);
-    const realDepartureTime = this.formatTime(trainAttributes.departure_time);
+  renderDeparture(TA) {
+    const hasDelay = TA.has_delay || false;
+    const isGone = new Date() > this.parseTime(TA.departure_time)
+    const delayMinutes = TA.delay_minutes || 0;
+    const departureTime = this.formatTime(TA.base_departure_time);
+    const realDepartureTime = this.formatTime(TA.departure_time);
 
     return `
       <div class="station">
@@ -623,26 +786,26 @@ class SncfTrainCard extends HTMLElement {
             ${hasDelay ? `+${delayMinutes}min` : isGone ? 'Parti' : 'À l\'heure'}
           </div>
         </div>
-        <div class="station-emoji">${this.renderIcone(this.config.departure_station_emoji)}</div>
+        <div class="station-emoji">${this.renderIcone(this.config.display.departure_station_emoji)}</div>
       </div>
     `
   }
 
   /**
    * Rendu de la section d'arrivée pour un train donné, en affichant l'heure d'arrivée prévue, l'heure d'arrivée réelle si le train a du retard.
-   * @param {object} trainAttributes - Les attributs du train
+   * @param {object} TA - Les attributs du train
    * @returns {string} Une chaîne HTML représentant la section d'arrivée du train
    */
-  renderArrival(trainAttributes) {
-    const hasDelay = trainAttributes.has_delay || false;
-    const isArrived = new Date() > this.parseTime(trainAttributes.arrival_time)
-    const delayMinutes = trainAttributes.delay_minutes || 0;
-    const arrivalTime = this.formatTime(trainAttributes.base_arrival_time);
-    const realArrivalTime = this.formatTime(trainAttributes.arrival_time);
+  renderArrival(TA) {
+    const hasDelay = TA.has_delay || false;
+    const isArrived = new Date() > this.parseTime(TA.arrival_time)
+    const delayMinutes = TA.delay_minutes || 0;
+    const arrivalTime = this.formatTime(TA.base_arrival_time);
+    const realArrivalTime = this.formatTime(TA.arrival_time);
 
     return `
       <div class="station">
-        <div class="station-emoji">${this.renderIcone(this.config.arrival_station_emoji)}</div>
+        <div class="station-emoji">${this.renderIcone(this.config.display.arrival_station_emoji)}</div>
         <div class="station-info">
           <div class="arrival-time-container">
             ${hasDelay && realArrivalTime ? `
@@ -789,6 +952,16 @@ class SncfTrainCard extends HTMLElement {
         .train-emoji-axial-symmetry-true {
           transform: translateX(-50%) scaleX(-1);
         }
+        
+        .delay-cause {
+          position: absolute;
+          top: 10px;
+          width: stretch;
+          text-align: center;
+          overflow:hidden; 
+          white-space:nowrap; 
+          text-overflow: ellipsis;
+        }
 
         .station {
           display: flex;
@@ -847,6 +1020,28 @@ class SncfTrainCard extends HTMLElement {
           padding: 20px;
           font-weight: 500;
         }
+
+        /* Radar Styles */
+        .timeline-wrapper { position: relative; margin-top: 15px; padding: 0 10px; }
+        .timeline-line { position: absolute; top: 7px; left: 35px; right: 35px; height: 2px; background: var(--primary-color); opacity: 0.2; }
+        .timeline-line.delayed-line { background: #ff9800; opacity: 0.5; }
+        .timeline-container { display: flex; justify-content: space-between; position: relative; z-index: 2; }
+        .timeline-stop { display: flex; flex-direction: column; align-items: center; width: 90px; }
+        .timeline-dot { width: 14px; height: 14px; border-radius: 50%; background: var(--card-background-color); border: 3px solid var(--primary-color); margin-bottom: 6px; box-sizing: border-box; }
+        .timeline-dot.delayed { border-color: #ff9800; }
+        .timeline-dot.passed { border-color: #747474; }
+        .timeline-dot.deleted { background: #f44336; border-color: #f44336; }
+        .timeline-dot.added { border-color: #ff9800; border-style: dashed; }
+        .timeline-time { font-size: 0.75em; font-weight: bold; display: contents; }
+        .base-time-radar { text-decoration: line-through; opacity: 0.5; font-size: 0.9em; }
+        .base-time-radar.passed { display: none; }
+        .amended-time-radar { color: #ff9800; font-weight: bold; }
+        .amended-time-radar.passed { color: #747474; font-weight: bold; }
+        .timeline-name { font-size: 0.65em; text-align: center; color: var(--secondary-text-color); line-height: 1.2; display: flex; flex-direction: column; align-items: center; }
+        .timeline-name.deleted { text-decoration: line-through; opacity: 0.5; }
+        .badge-stop { font-size: 0.8em; font-weight: bold; padding: 1px 3px; border-radius: 3px; color: white; width: fit-content; }
+        .badge-stop.deleted { background: #f44336; }
+        .badge-stop.added { background: #ff9800; }
       </style>
     `;
   }

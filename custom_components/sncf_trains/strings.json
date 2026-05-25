@@ -6,7 +6,7 @@
       }
     },
     "error": {
-      "invalid_api_key": "API Key not found. Please retry."
+      "invalid_api_key": "API Key not found or invalid. Please retry."
     },
     "abort": {
       "reconfigure_successful": "[%key:common::config_flow::abort::reconfigure_successful%]"
@@ -47,13 +47,13 @@
         "arrival_city": {
           "title": "Select arrival city",
           "data": {
-            "departure_city": "City name"
+            "arrival_city": "City name"
           }
         },
         "arrival_station": {
           "title": "Select arrival station",
           "data": {
-            "departure_station": "Station name"
+            "arrival_station": "Station name"
           }
         },
         "time_range": {
@@ -74,10 +74,10 @@
         }
       },
       "error": {
-        "no_stations": "No station for this city"
+        "no_stations": "No station found for this city"
       },
       "abort": {
-        "already_configured_as_entry": "Already train is configured",
+        "already_configured_as_entry": "This journey is already configured",
         "reconfigure_successful": "[%key:common::config_flow::abort::reconfigure_successful%]"
       }
     }

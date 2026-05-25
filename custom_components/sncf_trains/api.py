@@ -1,7 +1,7 @@
 import base64
 import logging
 from aiohttp import ClientSession, ClientTimeout, ClientError
-from typing import List, Optional, Mapping
+from typing import List, Optional, Mapping, Dict, Any
 from homeassistant.exceptions import ConfigEntryAuthFailed
 import asyncio
 
@@ -65,7 +65,7 @@ class SncfApiClient:
 
     async def fetch_journeys(
         self, from_id: str, to_id: str, datetime_str: str, count: int = 5
-    ) -> Optional[List[dict]]:
+    ) -> Optional[Dict[str, Any]]:
         url = f"{API_BASE}/v1/coverage/sncf/journeys"
         params_raw: dict[str, object] = {
             "from": from_id,
@@ -91,7 +91,7 @@ class SncfApiClient:
                     raise RuntimeError("Quota exceeded: 429 Too Many Requests.")
                 resp.raise_for_status()
                 data = await resp.json()
-                return data.get("journeys", [])
+                return data
         except (ClientError, asyncio.TimeoutError) as err:
             _LOGGER.warning("Network error fetching journeys from SNCF API: %s", err)
             return None

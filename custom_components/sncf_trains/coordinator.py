@@ -135,6 +135,7 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
             arrival = entry.data[CONF_TO]
             time_start = entry.data[CONF_TIME_START]
             time_end = entry.data[CONF_TIME_END]
+            train_count = entry.data.get("train_count", 10)
 
             update_intervals.append(self._adjust_update_interval(time_start, time_end))
             datetime_str = self._build_datetime_param(time_start, time_end)
@@ -142,7 +143,7 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
             for attempt in range(1, max_retries + 1):
                 try:
                     journeys = await self.api_client.fetch_journeys(
-                        departure, arrival, datetime_str, count=10
+                        departure, arrival, datetime_str, count=train_count
                     )
                     if journeys is not None:
                         break  # succès, on sort du retry
@@ -155,15 +156,21 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
                     )
                 await asyncio.sleep(retry_delay)
 
-            if journeys is None or not isinstance(journeys, list):
+            if journeys is None or not isinstance(journeys, dict):
                 _LOGGER.error("Aucune donnée reçue de l'API SNCF pour le trajet ")
                 continue
 
-            trains[subentry_id] = [
-                j
-                for j in journeys
-                if isinstance(j, dict) and len(j.get("sections", [])) == 1
-            ]
+            journeys_list = journeys.get("journeys", [])
+            disruptions_list = journeys.get("disruptions", [])
+
+            valid_journeys = []
+            for j in journeys_list:
+                if isinstance(j, dict) and len(j.get("sections", [])) == 1:
+                    # On injecte les perturbations dans chaque trajet
+                    j["_disruptions"] = disruptions_list
+                    valid_journeys.append(j)
+
+            trains[subentry_id] = valid_journeys
 
         if update_intervals:
             new_interval = min(update_intervals)
