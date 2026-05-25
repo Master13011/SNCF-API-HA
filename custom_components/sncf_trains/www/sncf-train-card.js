@@ -8,6 +8,9 @@ globalThis.customCards.push({
   configurable: true
 });
 
+class MissingConfigError extends Error {}
+class InvalidConfigTypeError extends TypeError {}
+
 class SncfTrainCard extends HTMLElement {
   constructor() {
     super();
@@ -28,26 +31,12 @@ class SncfTrainCard extends HTMLElement {
       throw new Error('You need to define device_id');
     }
 
-    // Normaliser device_id en tableau (rétrocompatibilité)
-    let normalizedDeviceId = config.device_id;
-    if (typeof normalizedDeviceId === 'string') {
-      normalizedDeviceId = [normalizedDeviceId];
-    } else if (!Array.isArray(normalizedDeviceId)) {
-      // FIXME : custom error ?
-      throw new TypeError('device_id must be a string or an array of strings');
-    }
+    config = this.migrateConfig(config);
 
-    // Vérifier qu'il y a au moins un device_id non-vide
-    if (!normalizedDeviceId.length || !normalizedDeviceId.some(id => typeof id === 'string' && id.trim() !== '')) {
-      // FIXME : custom error ?
-      throw new TypeError('You need to define at least one valid device_id');
-    }
+    const previousDeviceId = this.config?.device_id ?? null;
+    const deviceIdChanged = previousDeviceId && JSON.stringify(previousDeviceId) !== JSON.stringify(config.device_id);
 
-    const previousDeviceId = this.config ? this.config.device_id : null;
-    const deviceIdChanged = previousDeviceId && JSON.stringify(previousDeviceId) !== JSON.stringify(normalizedDeviceId);
-
-    // Créer une copie de la config avec le device_id normalisé
-    this.config = { ...config, device_id: normalizedDeviceId };
+    this.config = { ...config };
 
     // Forcer la mise à jour immédiate si device_id a changé
     if (deviceIdChanged) {
@@ -57,6 +46,68 @@ class SncfTrainCard extends HTMLElement {
 
     // Toujours forcer un nouveau rendu
     this.render();
+  }
+
+  /**
+   * Permet de migrer une configuration ancienne vers la nouvelle structure attendue.
+   * Pour le moment, la migration gère uniquement le bon affichage de la carte sans mettre à jour le code yaml de la carte.
+   * À voir s'il est possible de gérer une vraie migration des données.
+   * @param {object} config - La configuration actuelle de la carte à adapter
+   * @return {object} La configuration adaptée.
+   */
+  migrateConfig(config) {
+    const migrated = {...config};
+
+    // Créer `settings` si absent et transférer les champs legacy
+    if (!migrated.settings) {
+      const maybeSettings = {};
+      maybeSettings.title = migrated.title;
+      maybeSettings.train_lines = migrated.train_lines;
+      maybeSettings.show_route_details = migrated.show_route_details ?? false;
+
+      migrated.settings = {...maybeSettings};
+    }
+
+    // Créer `display` si absent et transférer les champs legacy
+    if (!migrated.display) {
+      const maybeDisplay = {};
+      maybeDisplay.number_of_stops = migrated.number_of_stops ?? 7;
+      maybeDisplay.train_emoji_axial_symmetry = migrated.train_emoji_axial_symmetry;
+      maybeDisplay.train_emoji = migrated.train_emoji;
+      maybeDisplay.show_departure_station = migrated.show_departure_station;
+      maybeDisplay.departure_station_emoji = migrated.departure_station_emoji;
+      maybeDisplay.show_arrival_station = migrated.show_arrival_station;
+      maybeDisplay.arrival_station_emoji = migrated.arrival_station_emoji;
+
+      migrated.display = {...maybeDisplay};
+    }
+
+    // Normaliser device_id en tableau (rétrocompatibilité)
+    let normalizedDeviceId = config.device_id;
+    if (typeof normalizedDeviceId === 'string') {
+      normalizedDeviceId = [normalizedDeviceId];
+    } else if (!Array.isArray(normalizedDeviceId)) {
+      throw new InvalidConfigTypeError('device_id must be a string or an array of strings');
+    }
+
+    // Vérifier qu'il y a au moins un device_id non-vide
+    if (!normalizedDeviceId.length || !normalizedDeviceId.some(id => typeof id === 'string' && id.trim() !== '')) {
+      throw new MissingConfigError('You need to define at least one valid device_id');
+    }
+
+    // Nettoyer les clés legacy si nous les avons migrées
+    const legacyKeys = [
+      'title', 'train_lines', 'show_route_details',
+      'number_of_stops', 'train_emoji_axial_symmetry', 'train_emoji',
+      'show_departure_station', 'departure_station_emoji', 'show_arrival_station', 'arrival_station_emoji'
+    ];
+    for (const k of legacyKeys) {
+      if (k in migrated && (migrated.settings || migrated.display)) {
+        delete migrated[k];
+      }
+    }
+
+    return { ...migrated, device_id: normalizedDeviceId};
   }
 
   /**
@@ -222,7 +273,7 @@ class SncfTrainCard extends HTMLElement {
    */
   static getStubConfig() {
     return {
-      device_id: ['', ''],
+      device_id: [''],
       settings: {
         title: 'Trains SNCF',
         train_lines: 5,
