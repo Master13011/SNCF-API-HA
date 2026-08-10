@@ -12,7 +12,7 @@ async def test_config_flow_happy_path(hass):
     mock_api.search_stations = AsyncMock(
         side_effect=[
             [{"id": "stop_area:dep", "name": "Paris Gare de Lyon"}],  # departure city
-            [{"id": "stop_area:arr", "name": "Lyon Part Dieu"}],       # arrival city
+            [{"id": "stop_area:arr", "name": "Lyon Part Dieu"}],  # arrival city
         ]
     )
 
@@ -88,4 +88,3 @@ async def test_config_flow_invalid_api_key(hass):
 
         assert result["type"] == "form"
         assert result["errors"]["base"] == "invalid_api_key"
-

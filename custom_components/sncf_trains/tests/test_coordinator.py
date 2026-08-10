@@ -76,5 +76,3 @@ async def test_coordinator_adjust_interval(hass):
 
     await coordinator._async_update_data()
     assert coordinator.update_interval == timedelta(minutes=30)
-
-

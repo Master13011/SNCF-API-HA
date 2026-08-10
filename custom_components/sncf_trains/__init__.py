@@ -1,95 +1,129 @@
-import logging
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
-from homeassistant.exceptions import ConfigEntryNotReady
-from homeassistant.helpers.aiohttp_client import async_get_clientsession
+"""The SNCF Train integration."""
 
-from .api import SncfApiClient
-from .const import DOMAIN, CONF_API_KEY, CONF_FROM, CONF_TO, CONF_TIME_START, CONF_TIME_END, DEFAULT_UPDATE_INTERVAL, DEFAULT_TIME_START, DEFAULT_TIME_END, DEFAULT_OUTSIDE_INTERVAL
+from pathlib import Path
+from types import MappingProxyType
+from logging import getLogger
+from typing import Any
+
+from homeassistant.config_entries import ConfigEntry, ConfigSubentry
+from homeassistant.core import HomeAssistant, CoreState, EVENT_HOMEASSISTANT_STARTED
+from homeassistant.helpers.entity_registry import Platform
+from homeassistant.components.frontend import add_extra_js_url
+from homeassistant.components.http import StaticPathConfig
+from homeassistant.helpers import config_validation as cv
+
+from .const import (
+    CONF_API_KEY,
+    CONF_ARRIVAL_NAME,
+    CONF_DEPARTURE_NAME,
+    CONF_FROM,
+    CONF_TIME_END,
+    CONF_TIME_START,
+    CONF_TO,
+    CONF_TRAIN_COUNT,
+    DOMAIN,
+)
 from .coordinator import SncfUpdateCoordinator
 
-_LOGGER = logging.getLogger(__name__)
+type SncfDataConfigEntry = ConfigEntry[SncfUpdateCoordinator]
+
+PLATFORMS: list[Platform] = [Platform.SENSOR, Platform.CALENDAR]
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+
+CARD_URL = "/sncf_trains/sncf-train-card.js"
+CARD_FILE = Path(__file__).parent / "www" / "sncf-train-card.js"
+LOGGER = getLogger(__name__)
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    if not entry.options:
-        hass.config_entries.async_update_entry(entry, options={
-            CONF_TIME_START: entry.data.get(CONF_TIME_START, DEFAULT_TIME_START),
-            CONF_TIME_END: entry.data.get(CONF_TIME_END, DEFAULT_TIME_END),
-            "update_interval": entry.data.get("update_interval", DEFAULT_UPDATE_INTERVAL),
-        })
+async def async_setup(hass: HomeAssistant, config: dict) -> bool:
+    """Set up SNCF Trains component — register the Lovelace card."""
+    async def _setup_frontend(_event: Any = None) -> None:
+        """Inner function to register frontend modules."""
+        await hass.http.async_register_static_paths(
+            [StaticPathConfig(CARD_URL, str(CARD_FILE), cache_headers=False)]
+        )
+        add_extra_js_url(hass, CARD_URL)
 
-    api_key = entry.options.get(CONF_API_KEY) or entry.data.get(CONF_API_KEY)
-    departure = entry.data[CONF_FROM]
-    arrival = entry.data[CONF_TO]
-
-    if not api_key:
-        _LOGGER.error("API key not found in options")
-        return False
-
-    time_start = entry.options.get(CONF_TIME_START, DEFAULT_TIME_START)
-    time_end = entry.options.get(CONF_TIME_END, DEFAULT_TIME_END)
-    update_interval = entry.options.get("update_interval", DEFAULT_UPDATE_INTERVAL)
-    outside_interval = entry.options.get("outside_interval", DEFAULT_OUTSIDE_INTERVAL)
-
-    session = async_get_clientsession(hass)
-    api_client = SncfApiClient(session, api_key)
-
-    try:
-        departures = await api_client.fetch_departures(stop_id=departure, max_results=1)
-        if departures is None:
-            raise ConfigEntryNotReady("Failed to fetch departures from SNCF API")
-    except Exception as err:
-        _LOGGER.error("Error connecting to SNCF API: %s", err)
-        raise ConfigEntryNotReady from err
-
-    coordinator = SncfUpdateCoordinator(
-        hass,
-        api_client,
-        departure,
-        arrival,
-        time_start,
-        time_end,
-        update_interval=update_interval,
-        outside_interval=outside_interval
-    )
-    await coordinator.async_refresh()
-    if not coordinator.last_update_success:
-        raise ConfigEntryNotReady("Initial data fetch failed")
-
-    hass.data.setdefault(DOMAIN, {})
-    hass.data[DOMAIN][entry.entry_id] = coordinator
-
-    entry.async_on_unload(entry.add_update_listener(async_reload_entry))
-
-    await hass.config_entries.async_forward_entry_setups(entry, ["sensor"])
+    if hass.state == CoreState.running:
+        LOGGER.debug(
+            "Home Assistant already running, registering frontend modules immediately."
+        )
+        await _setup_frontend()
+    else:
+        LOGGER.debug(
+            "Home Assistant not running yet, scheduling frontend module registration."
+        )
+        hass.bus.async_listen_once(EVENT_HOMEASSISTANT_STARTED, _setup_frontend)
 
     return True
 
 
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    unload_ok = await hass.config_entries.async_unload_platforms(entry, ["sensor"])
-    if unload_ok:
-        hass.data[DOMAIN].pop(entry.entry_id, None)
-    return unload_ok
+async def async_setup_entry(hass: HomeAssistant, entry: SncfDataConfigEntry) -> bool:
+    """Set up SNCF Train as config entry."""
+    coordinator = SncfUpdateCoordinator(hass, entry)
+    await coordinator.async_config_entry_first_refresh()
+    entry.runtime_data = coordinator
+
+    entry.async_on_unload(entry.add_update_listener(async_reload_entry))
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+    return True
 
 
-async def async_reload_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+async def async_unload_entry(hass: HomeAssistant, entry: SncfDataConfigEntry) -> bool:
+    """Unload a config entry."""
+    return await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+
+
+async def async_reload_entry(hass: HomeAssistant, entry: SncfDataConfigEntry) -> None:
+    """Reload entry if change option."""
     await hass.config_entries.async_reload(entry.entry_id)
 
 
-async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+async def async_migrate_entry(hass: HomeAssistant, entry: SncfDataConfigEntry) -> bool:
     """Migrate old config entries to move API key to options."""
     data = dict(entry.data)
     options = dict(entry.options)
     updated = False
 
-    if CONF_API_KEY in data:
-        options.setdefault(CONF_API_KEY, data.pop(CONF_API_KEY))
+    if CONF_API_KEY in options:
+        data.setdefault(CONF_API_KEY, options.pop(CONF_API_KEY))
         updated = True
 
     if updated:
-        hass.config_entries.async_update_entry(entry, data=data, options=options)
-        _LOGGER.info("Migrated SNCF config entry to move api_key to options.")
+        time_start = options.pop(CONF_TIME_START)
+        time_end = options.pop(CONF_TIME_END)
+        train_count = options.pop(CONF_TRAIN_COUNT)
+        from_ = data.pop(CONF_FROM)
+        to_ = data.pop(CONF_TO)
+        dep_name = data.pop(CONF_DEPARTURE_NAME)
+        arr_name = data.pop(CONF_ARRIVAL_NAME)
+        subentry_data = MappingProxyType(
+            {
+                CONF_FROM: from_,
+                CONF_TO: to_,
+                CONF_DEPARTURE_NAME: dep_name,
+                CONF_ARRIVAL_NAME: arr_name,
+                CONF_TIME_START: time_start,
+                CONF_TIME_END: time_end,
+                CONF_TRAIN_COUNT: train_count,
+            }
+        )
+
+        hass.config_entries.async_update_entry(
+            entry,
+            data=data,
+            options=options,
+            unique_id="sncf_trains",
+            title="Trains SNCF",
+        )
+        subentry = ConfigSubentry(
+            title=f"Trajet: {dep_name} → {arr_name} ({time_start} - {time_end})",
+            data=subentry_data,
+            subentry_id=f"{entry.entry_id}_MIGRATE",
+            subentry_type="train",
+            unique_id=f"{from_}_{to_}_{time_start}_{time_end}",
+        )
+        hass.config_entries.async_add_subentry(entry, subentry)
 
     return True
