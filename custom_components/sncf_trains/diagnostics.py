@@ -1,12 +1,17 @@
 """Diagnostics support for SNCF integration."""
+
 from __future__ import annotations
+
 from typing import Any
-from homeassistant.core import HomeAssistant
+
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.helpers.dumps import async_redact_data
-from .const import DOMAIN, CONF_API_KEY
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.redact import async_redact_data
+
+from .const import CONF_API_KEY, DOMAIN
 
 TO_REDACT = {CONF_API_KEY}
+
 
 async def async_get_config_entry_diagnostics(
     hass: HomeAssistant, entry: ConfigEntry
@@ -31,7 +36,9 @@ async def async_get_config_entry_diagnostics(
             "time_end": coordinator.time_end,
             "update_interval": str(coordinator.update_interval),
             "last_update_success": coordinator.last_update_success,
-            "last_update_time": str(getattr(coordinator, "last_update_success_time", None)),
+            "last_update_time": str(
+                getattr(coordinator, "last_update_success_time", None)
+            ),
             "data_sample": coordinator.data[:3] if coordinator.data else None,
         }
     return data
