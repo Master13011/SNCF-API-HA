@@ -136,15 +136,9 @@ async def async_get_config_entry_diagnostics(
 
             journey_info: dict[str, Any] = {
                 "index": journey_index,
-                "departure_date_time": journey.get(
-                    "departure_date_time"
-                ),
-                "arrival_date_time": journey.get(
-                    "arrival_date_time"
-                ),
-                "requested_date_time": journey.get(
-                    "requested_date_time"
-                ),
+                "departure_date_time": journey.get("departure_date_time"),
+                "arrival_date_time": journey.get("arrival_date_time"),
+                "requested_date_time": journey.get("requested_date_time"),
                 "duration": journey.get("duration"),
                 "nb_transfers": journey.get("nb_transfers"),
                 "type": journey.get("type"),
@@ -182,26 +176,14 @@ async def async_get_config_entry_diagnostics(
                     "id": section.get("id"),
                     "type": section.get("type"),
                     "mode": section.get("mode"),
-                    "departure_date_time": section.get(
-                        "departure_date_time"
-                    ),
-                    "arrival_date_time": section.get(
-                        "arrival_date_time"
-                    ),
+                    "departure_date_time": section.get("departure_date_time"),
+                    "arrival_date_time": section.get("arrival_date_time"),
                     "duration": section.get("duration"),
                     "display_informations": {
-                        "commercial_mode": display_info.get(
-                            "commercial_mode"
-                        ),
-                        "physical_mode": display_info.get(
-                            "physical_mode"
-                        ),
-                        "direction": display_info.get(
-                            "direction"
-                        ),
-                        "trip_short_name": display_info.get(
-                            "trip_short_name"
-                        ),
+                        "commercial_mode": display_info.get("commercial_mode"),
+                        "physical_mode": display_info.get("physical_mode"),
+                        "direction": display_info.get("direction"),
+                        "trip_short_name": display_info.get("trip_short_name"),
                         "num": display_info.get("num"),
                     },
                 }

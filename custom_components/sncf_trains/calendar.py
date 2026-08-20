@@ -79,9 +79,7 @@ class SNCFCalendar(
 
         self._event: MyCalendarEvent | None = None
 
-        self._attr_unique_id = (
-            f"calendar_sncf_train_{coordinator.entry.entry_id}"
-        )
+        self._attr_unique_id = f"calendar_sncf_train_{coordinator.entry.entry_id}"
 
         self._attr_device_info = {
             "identifiers": {(DOMAIN, coordinator.entry.entry_id)},
@@ -109,9 +107,7 @@ class SNCFCalendar(
 
             self._event = min(
                 events,
-                key=lambda event: abs(
-                    event.start.replace(tzinfo=None) - now
-                ),
+                key=lambda event: abs(event.start.replace(tzinfo=None) - now),
             )
 
             if self._event:
@@ -147,9 +143,7 @@ class SNCFCalendar(
         arr_name: str,
     ) -> tuple[bool, int, str]:
         """Calculate the delay for a journey."""
-        arr_dt = parse_datetime(
-            journey.get("arrival_date_time", "")
-        )
+        arr_dt = parse_datetime(journey.get("arrival_date_time", ""))
 
         sections = journey.get("sections", [])
 
@@ -158,9 +152,7 @@ class SNCFCalendar(
         else:
             section = sections[0]
 
-        base_arr_dt = parse_datetime(
-            section.get("base_arrival_date_time", "")
-        )
+        base_arr_dt = parse_datetime(section.get("base_arrival_date_time", ""))
 
         delay = (
             int((arr_dt - base_arr_dt).total_seconds() / 60)
@@ -224,9 +216,7 @@ class SNCFCalendar(
                 display_count,
             )
 
-            for journey_index, journey in enumerate(
-                journeys[:display_count]
-            ):
+            for journey_index, journey in enumerate(journeys[:display_count]):
                 if not isinstance(journey, dict):
                     _LOGGER.debug(
                         "Journey[%d] ignoré : format inattendu : %r",
@@ -253,13 +243,9 @@ class SNCFCalendar(
                     )
                     continue
 
-                dep_dt = parse_datetime(
-                    journey.get("departure_date_time", "")
-                )
+                dep_dt = parse_datetime(journey.get("departure_date_time", ""))
 
-                arr_dt = parse_datetime(
-                    journey.get("arrival_date_time", "")
-                )
+                arr_dt = parse_datetime(journey.get("arrival_date_time", ""))
 
                 if not dep_dt or not arr_dt:
                     _LOGGER.debug(
@@ -287,10 +273,7 @@ class SNCFCalendar(
                         summary=summary,
                         start=dep_dt,
                         end=dep_dt + timedelta(minutes=1),
-                        description=(
-                            f"Arrivée: {arr_dt}, "
-                            f"retard: {delay} minutes"
-                        ),
+                        description=(f"Arrivée: {arr_dt}, retard: {delay} minutes"),
                         location=str(dep_name),
                         uid=section.get(
                             "id",

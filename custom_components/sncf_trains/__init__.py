@@ -37,6 +37,7 @@ LOGGER = getLogger(__name__)
 
 async def async_setup(hass: HomeAssistant, config: dict) -> bool:
     """Set up SNCF Trains component — register the Lovelace card."""
+
     async def _setup_frontend(_event: Any = None) -> None:
         """Inner function to register frontend modules."""
         await hass.http.async_register_static_paths(

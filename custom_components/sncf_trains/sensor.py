@@ -135,9 +135,7 @@ class SncfJourneySensor(
         """Initialize."""
         super().__init__(coordinator)
 
-        self._attr_unique_id = (
-            f"sncf_trains_{coordinator.entry.entry_id}"
-        )
+        self._attr_unique_id = f"sncf_trains_{coordinator.entry.entry_id}"
 
         self._attr_device_info = {
             "identifiers": {
@@ -160,9 +158,7 @@ class SncfJourneySensor(
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
 
-        self._attr_native_value = len(
-            self.coordinator.data
-        )
+        self._attr_native_value = len(self.coordinator.data)
 
         self._attr_extra_state_attributes = {
             "update_interval": self.coordinator.update_interval_minutes,
@@ -200,9 +196,7 @@ class SncfTrainSensor(
 
         section = get_transport_section(journey)
 
-        departure_time = parse_datetime(
-            section.get("base_departure_date_time", "")
-        )
+        departure_time = parse_datetime(section.get("base_departure_date_time", ""))
 
         dep_name = entry.data[CONF_DEPARTURE_NAME]
         arr_name = entry.data[CONF_ARRIVAL_NAME]
@@ -212,13 +206,9 @@ class SncfTrainSensor(
 
         self._attr_name = f"Train {journey_id + 1}"
 
-        self._attr_unique_id = (
-            f"{entry.subentry_id}_{journey_id}"
-        )
+        self._attr_unique_id = f"{entry.subentry_id}_{journey_id}"
 
-        self._attr_extra_state_attributes = (
-            self._extra_attributes(journey)
-        )
+        self._attr_extra_state_attributes = self._extra_attributes(journey)
 
         self._attr_device_info = {
             "identifiers": {
@@ -258,9 +248,7 @@ class SncfTrainSensor(
             )
         )
 
-        self._attr_extra_state_attributes = (
-            self._extra_attributes(journey)
-        )
+        self._attr_extra_state_attributes = self._extra_attributes(journey)
 
         self.async_write_ha_state()
 
@@ -287,12 +275,7 @@ class SncfTrainSensor(
         )
 
         delay = (
-            int(
-                (
-                    arr_dt - base_arr_dt
-                ).total_seconds()
-                / 60
-            )
+            int((arr_dt - base_arr_dt).total_seconds() / 60)
             if arr_dt and base_arr_dt
             else 0
         )
@@ -373,9 +356,7 @@ class SncfAllTrainsLineSensor(
 
         self._attr_name = "Tous les trains (ligne)"
 
-        self._attr_unique_id = (
-            f"{train_id}_all_trains_line"
-        )
+        self._attr_unique_id = f"{train_id}_all_trains_line"
 
         self._attr_device_info = {
             "identifiers": {
@@ -423,12 +404,7 @@ class SncfAllTrainsLineSensor(
             )
 
             delay = (
-                int(
-                    (
-                        arr_dt - base_arr_dt
-                    ).total_seconds()
-                    / 60
-                )
+                int((arr_dt - base_arr_dt).total_seconds() / 60)
                 if arr_dt and base_arr_dt
                 else 0
             )
@@ -457,15 +433,9 @@ class SncfAllTrainsLineSensor(
                 overall_has_delay = True
 
         self._attr_extra_state_attributes = {
-            "departure_time": "; ".join(
-                departure_times
-            ),
-            "base_departure_time": "; ".join(
-                base_departure_times
-            ),
-            "delay_minutes": "; ".join(
-                delays
-            ),
+            "departure_time": "; ".join(departure_times),
+            "base_departure_time": "; ".join(base_departure_times),
+            "delay_minutes": "; ".join(delays),
             "has_delay": overall_has_delay,
         }
 

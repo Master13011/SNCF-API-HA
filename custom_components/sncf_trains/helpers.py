@@ -108,17 +108,11 @@ def get_train_num(journey: dict[str, Any]) -> str:
 
 def get_duration(journey: dict[str, Any]) -> int:
     """Compute journey duration in minutes."""
-    dep = parse_datetime(
-        journey.get("departure_date_time", "")
-    )
+    dep = parse_datetime(journey.get("departure_date_time", ""))
 
-    arr = parse_datetime(
-        journey.get("arrival_date_time", "")
-    )
+    arr = parse_datetime(journey.get("arrival_date_time", ""))
 
     if dep and arr:
-        return int(
-            (arr - dep).total_seconds() / 60
-        )
+        return int((arr - dep).total_seconds() / 60)
 
     return 0

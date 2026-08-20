@@ -64,9 +64,7 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
 
         except Exception as err:
             if "401" in str(err) or "403" in str(err):
-                raise ConfigEntryAuthFailed(
-                    "Clé API invalide ou expirée"
-                ) from err
+                raise ConfigEntryAuthFailed("Clé API invalide ou expirée") from err
 
             _LOGGER.error(
                 "Erreur lors de la récupération des trajets SNCF: %s",
