@@ -11,7 +11,12 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from . import SncfDataConfigEntry
-from .const import CONF_ARRIVAL_NAME, CONF_DEPARTURE_NAME, CONF_TRAIN_COUNT, DOMAIN
+from .const import (
+    CONF_ARRIVAL_NAME,
+    CONF_DEPARTURE_NAME,
+    CONF_TRAIN_COUNT,
+    DOMAIN,
+)
 from .coordinator import SncfUpdateCoordinator
 from .helpers import get_train_num, parse_datetime
 
@@ -35,9 +40,13 @@ async def async_setup_entry(
     entry: SncfDataConfigEntry,
     async_add_entities: AddConfigEntryEntitiesCallback,
 ) -> None:
-    """Set up the Demo Calendar config entry."""
+    """Set up the SNCF calendar."""
     coordinator: SncfUpdateCoordinator = entry.runtime_data
-    async_add_entities([SNCFCalendar(coordinator)], update_before_add=True)
+
+    async_add_entities(
+        [SNCFCalendar(coordinator)],
+        update_before_add=True,
+    )
 
 
 @dataclass
@@ -48,24 +57,32 @@ class SNCFEventMixIn:
     delay: int
     departure_date_time: datetime
     arrival_date_time: datetime
-    train_num: int
+    train_num: int | None
 
 
 @dataclass
 class MyCalendarEvent(CalendarEvent, SNCFEventMixIn):
-    """A class to describe a calendar event."""
+    """A class to describe a SNCF calendar event."""
 
 
-class SNCFCalendar(CoordinatorEntity[SncfUpdateCoordinator], CalendarEntity):
-    """Representation of a Calendar element."""
+class SNCFCalendar(
+    CoordinatorEntity[SncfUpdateCoordinator],
+    CalendarEntity,
+):
+    """Representation of the SNCF Calendar."""
 
     _attr_name = "Trains"
 
     def __init__(self, coordinator: SncfUpdateCoordinator) -> None:
-        """Initialize demo calendar."""
+        """Initialize the SNCF calendar."""
         super().__init__(coordinator)
+
         self._event: MyCalendarEvent | None = None
-        self._attr_unique_id = f"calendar_sncf_train_{coordinator.entry.entry_id}"
+
+        self._attr_unique_id = (
+            f"calendar_sncf_train_{coordinator.entry.entry_id}"
+        )
+
         self._attr_device_info = {
             "identifiers": {(DOMAIN, coordinator.entry.entry_id)},
             "name": "SNCF",
@@ -85,11 +102,18 @@ class SNCFCalendar(CoordinatorEntity[SncfUpdateCoordinator], CalendarEntity):
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
-        if self._fetch_journeys():
+        events = self._fetch_journeys()
+
+        if events:
+            now = datetime.now()
+
             self._event = min(
-                self._fetch_journeys(),
-                key=lambda x: abs(x.start.replace(tzinfo=None) - datetime.now()),
+                events,
+                key=lambda event: abs(
+                    event.start.replace(tzinfo=None) - now
+                ),
             )
+
             if self._event:
                 self._attr_extra_state_attributes = {
                     "has_delay": self._event.has_delay,
@@ -98,32 +122,52 @@ class SNCFCalendar(CoordinatorEntity[SncfUpdateCoordinator], CalendarEntity):
                     "arrival": self._event.arrival_date_time,
                     "number": self._event.train_num,
                 }
+        else:
+            self._event = None
+            self._attr_extra_state_attributes = {}
+
         self.async_write_ha_state()
 
     async def async_get_events(
-        self, _hass: HomeAssistant, start_date: datetime, end_date: datetime
+        self,
+        _hass: HomeAssistant,
+        start_date: datetime,
+        end_date: datetime,
     ) -> list[CalendarEvent]:
-        """Return calendar events within a datetime range.
-
-        This is only called when opening the calendar in the UI.
-        """
+        """Return calendar events within a datetime range."""
         if not self.available:
             return []
 
         return self._fetch_journeys()
 
     def _async_calculate_delay(
-        self, journey, dep_name: str, arr_name: str
+        self,
+        journey,
+        dep_name: str,
+        arr_name: str,
     ) -> tuple[bool, int, str]:
-        arr_dt = parse_datetime(journey.get("arrival_date_time", ""))
-        section = journey.get("sections", [{}])[0]
-        base_arr_dt = parse_datetime(section.get("base_arrival_date_time", ""))
+        """Calculate the delay for a journey."""
+        arr_dt = parse_datetime(
+            journey.get("arrival_date_time", "")
+        )
+
+        sections = journey.get("sections", [])
+
+        if not isinstance(sections, list) or not sections:
+            section = {}
+        else:
+            section = sections[0]
+
+        base_arr_dt = parse_datetime(
+            section.get("base_arrival_date_time", "")
+        )
 
         delay = (
             int((arr_dt - base_arr_dt).total_seconds() / 60)
             if arr_dt and base_arr_dt
             else 0
         )
+
         summary = (
             f"{dep_name} → {arr_name} - RETARD ({delay}min)"
             if delay > 0
@@ -132,38 +176,132 @@ class SNCFCalendar(CoordinatorEntity[SncfUpdateCoordinator], CalendarEntity):
 
         return delay > 0, delay, summary
 
-    def _fetch_journeys(self):
-        """Fetch journeys."""
-        calendar_events = []
+    def _get_train_number(self, journey) -> int | None:
+        """Return the train number when available."""
+        train_num = get_train_num(journey)
+
+        if train_num in (None, ""):
+            return None
+
+        try:
+            return int(train_num)
+        except (TypeError, ValueError):
+            _LOGGER.debug(
+                "Numéro de train non numérique ou invalide: %r",
+                train_num,
+            )
+            return None
+
+    def _fetch_journeys(self) -> list[MyCalendarEvent]:
+        """Fetch journeys and convert them to calendar events."""
+        calendar_events: list[MyCalendarEvent] = []
+
         for tid, journeys in self.coordinator.data.items():
-            entry = self.coordinator.entry.subentries[tid]
+            if not isinstance(journeys, list):
+                continue
+
+            entry = self.coordinator.entry.subentries.get(tid)
+
+            if entry is None:
+                _LOGGER.warning(
+                    "Subentry SNCF introuvable pour tid=%s",
+                    tid,
+                )
+                continue
+
             dep_name = entry.data[CONF_DEPARTURE_NAME]
             arr_name = entry.data[CONF_ARRIVAL_NAME]
-            display_count = min(len(journeys), entry.data[CONF_TRAIN_COUNT])
-            _LOGGER.debug("%s -> %s", dep_name, arr_name)
-            for journey in journeys[:display_count]:
-                section = journey.get("sections", [{}])[0]
-                dep_dt = parse_datetime(journey.get("departure_date_time", ""))
-                arr_dt = parse_datetime(journey.get("arrival_date_time", ""))
-                has_delay, delay, summary = self._async_calculate_delay(
-                    journey, dep_name, arr_name
+
+            display_count = min(
+                len(journeys),
+                entry.data.get(CONF_TRAIN_COUNT, 10),
+            )
+
+            _LOGGER.debug(
+                "Calendrier SNCF : %s → %s : %d trajet(s)",
+                dep_name,
+                arr_name,
+                display_count,
+            )
+
+            for journey_index, journey in enumerate(
+                journeys[:display_count]
+            ):
+                if not isinstance(journey, dict):
+                    _LOGGER.debug(
+                        "Journey[%d] ignoré : format inattendu : %r",
+                        journey_index,
+                        journey,
+                    )
+                    continue
+
+                sections = journey.get("sections", [])
+
+                if not isinstance(sections, list) or not sections:
+                    _LOGGER.debug(
+                        "Journey[%d] ignoré : aucune section",
+                        journey_index,
+                    )
+                    continue
+
+                section = sections[0]
+
+                if not isinstance(section, dict):
+                    _LOGGER.debug(
+                        "Journey[%d] ignoré : première section invalide",
+                        journey_index,
+                    )
+                    continue
+
+                dep_dt = parse_datetime(
+                    journey.get("departure_date_time", "")
                 )
 
-                if dep_dt and arr_dt:
-                    calendar_events.append(
-                        MyCalendarEvent(
-                            summary=summary,
-                            start=dep_dt,
-                            end=dep_dt + timedelta(minutes=1),
-                            description=f"Arrivée: {arr_dt}, retard: {delay} minutes",
-                            location=str(dep_name),
-                            uid=section.get("id"),
-                            has_delay=has_delay,
-                            delay=delay,
-                            departure_date_time=dep_dt,
-                            arrival_date_time=arr_dt,
-                            train_num=int(get_train_num(journey)),
-                        )
+                arr_dt = parse_datetime(
+                    journey.get("arrival_date_time", "")
+                )
+
+                if not dep_dt or not arr_dt:
+                    _LOGGER.debug(
+                        "Journey[%d] ignoré : date départ/arrivée invalide",
+                        journey_index,
                     )
+                    continue
+
+                has_delay, delay, summary = self._async_calculate_delay(
+                    journey,
+                    dep_name,
+                    arr_name,
+                )
+
+                train_num = self._get_train_number(journey)
+
+                if train_num is None:
+                    _LOGGER.debug(
+                        "Journey[%d] : aucun numéro de train disponible",
+                        journey_index,
+                    )
+
+                calendar_events.append(
+                    MyCalendarEvent(
+                        summary=summary,
+                        start=dep_dt,
+                        end=dep_dt + timedelta(minutes=1),
+                        description=(
+                            f"Arrivée: {arr_dt}, "
+                            f"retard: {delay} minutes"
+                        ),
+                        location=str(dep_name),
+                        uid=section.get(
+                            "id",
+                            f"{tid}_{journey_index}",
+                        ),
+                        has_delay=has_delay,
+                        delay=delay,
+                        departure_date_time=dep_dt,
+                        arrival_date_time=arr_dt,
+                        train_num=train_num,
+                    )
+                )
 
         return calendar_events

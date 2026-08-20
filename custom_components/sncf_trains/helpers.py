@@ -25,25 +25,100 @@ def format_time(dt_str: str) -> str:
 
 
 def get_train_num(journey: dict[str, Any]) -> str:
-    """Extract the commercial train number."""
+    """Extract the commercial train number from a journey."""
+    # ---------------------------------------------------------
+    # 1. Le journey peut directement contenir le numéro
+    # ---------------------------------------------------------
     trip_num = journey.get("trip_short_name")
+
     if trip_num:
-        return trip_num
+        return str(trip_num)
 
+    # ---------------------------------------------------------
+    # 2. Cherche dans les sections
+    #
+    # Les nouveaux trajets peuvent avoir par exemple :
+    #
+    # section[0] = crow_fly / walking
+    # section[1] = public_transport
+    # section[2] = crow_fly / walking
+    #
+    # Il ne faut donc plus supposer que sections[0] est le train.
+    # ---------------------------------------------------------
     sections = journey.get("sections", [])
-    if sections:
-        infos = sections[0].get("display_informations", {})
-        return infos.get("trip_short_name") or infos.get("num", "")
 
+    if not isinstance(sections, list):
+        return ""
+
+    # ---------------------------------------------------------
+    # 3. Priorité aux sections public_transport
+    # ---------------------------------------------------------
+    for section in sections:
+        if not isinstance(section, dict):
+            continue
+
+        if section.get("type") != "public_transport":
+            continue
+
+        infos = section.get("display_informations", {})
+
+        if not isinstance(infos, dict):
+            continue
+
+        trip_num = infos.get("trip_short_name")
+
+        if trip_num:
+            return str(trip_num)
+
+        trip_num = infos.get("num")
+
+        if trip_num:
+            return str(trip_num)
+
+    # ---------------------------------------------------------
+    # 4. Fallback : chercher dans n'importe quelle section
+    #
+    # Utile pour conserver la compatibilité avec les anciens
+    # formats de réponse API.
+    # ---------------------------------------------------------
+    for section in sections:
+        if not isinstance(section, dict):
+            continue
+
+        infos = section.get("display_informations", {})
+
+        if not isinstance(infos, dict):
+            continue
+
+        trip_num = infos.get("trip_short_name")
+
+        if trip_num:
+            return str(trip_num)
+
+        trip_num = infos.get("num")
+
+        if trip_num:
+            return str(trip_num)
+
+    # ---------------------------------------------------------
+    # 5. Aucun numéro trouvé
+    # ---------------------------------------------------------
     return ""
 
 
 def get_duration(journey: dict[str, Any]) -> int:
     """Compute journey duration in minutes."""
-    dep = parse_datetime(journey.get("departure_date_time", ""))
-    arr = parse_datetime(journey.get("arrival_date_time", ""))
+    dep = parse_datetime(
+        journey.get("departure_date_time", "")
+    )
+
+    arr = parse_datetime(
+        journey.get("arrival_date_time", "")
+    )
 
     if dep and arr:
-        return int((arr - dep).total_seconds() / 60)
+        return int(
+            (arr - dep).total_seconds() / 60
+        )
 
     return 0
