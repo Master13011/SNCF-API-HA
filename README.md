@@ -62,7 +62,7 @@ Plusieurs trajets peuvent être configurés séparément.
 
 ## 🔐 Clé API SNCF
 
-Obtenez votre clé ici : [https://www.digital.sncf.com/startup/api](https://www.digital.sncf.com/startup/api)
+Obtenez votre clé ici : https://numerique.sncf.com/startup/api/
 
 1. Créez un compte ou connectez-vous
 2. Générez une clé API gratuite
