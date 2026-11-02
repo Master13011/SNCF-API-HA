@@ -13,6 +13,7 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
+from .helpers import format_time, get_duration, get_train_num, parse_datetime
 from .api import SncfApiClient
 from .const import (
     CONF_API_KEY,
@@ -272,6 +273,34 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
                 entry.title,
                 len(filtered_journeys),
             )
+
+            # Fetch platforms from Gares & Connexions
+            platforms_map = {}
+            try:
+                # Get station UIC from departure (e.g., stop_area:SNCF:87723197 -> 0087723197)
+                uic = departure.split(":")[-1]
+                if uic.isdigit():
+                    uic_formatted = uic.zfill(10)
+                    url_gc = f"https://www.garesetconnexions.sncf/schedule-table/Departures/{uic_formatted}"
+                    session = async_get_clientsession(self.hass)
+                    async with session.get(url_gc, timeout=5) as resp:
+                        if resp.status == 200:
+                            gc_data = await resp.json()
+                            if isinstance(gc_data, list):
+                                for item in gc_data:
+                                    t_num = str(item.get("trainNumber", ""))
+                                    plat_info = item.get("platform", {})
+                                    if isinstance(plat_info, dict):
+                                        track = plat_info.get("track")
+                                        if t_num and track:
+                                            platforms_map[t_num] = str(track)
+            except Exception as err:
+                _LOGGER.debug("Could not fetch Gares & Connexions platforms: %s", err)
+
+            for journey in filtered_journeys:
+                train_num = get_train_num(journey)
+                if train_num and train_num in platforms_map:
+                    journey["platform_track"] = platforms_map[train_num]
 
             trains[subentry_id] = filtered_journeys
 

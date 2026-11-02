@@ -331,6 +331,7 @@ class SncfTrainSensor(
                 "",
             ),
             "train_num": get_train_num(journey),
+            "platform": journey.get("platform_track", "N/A"),
         }
 
 
