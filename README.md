@@ -6,6 +6,7 @@
 
 Suivez les horaires des trains SNCF entre deux gares dans Home Assistant, grâce à l’API officielle [SNCF](https://www.digital.sncf.com/startup/api).
 Départ / arrivée, retards, durée, mode (TER…), tout est intégré dans une interface configurable et traduite.
+Les numéros de voie sont récupérés via l'API Gares & Connexions lorsque l'information est disponible.
 
 > ⚠️ Ne prend pas en compte les trains supprimés.
 
@@ -104,6 +105,7 @@ Obtenez votre clé ici : https://numerique.sncf.com/startup/api/
 - Retard estimé
 - Durée totale (`duration_minutes`)
 - Mode, direction, numéro
+- Plateforme
 
 ---
 
