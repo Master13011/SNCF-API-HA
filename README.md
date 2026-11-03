@@ -2,7 +2,7 @@
 
 ![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2025.8.2%2B-blue?logo=home-assistant)
 ![Custom Component](https://img.shields.io/badge/Custom%20Component-oui-orange)
-![Licence MIT](https://img.shields.io/badge/Licence-MIT-green)
+![Licence](https://img.shields.io/badge/Licence-AGPL--3.0-green)
 
 Suivez les horaires des trains SNCF entre deux gares dans Home Assistant, grâce à l’API officielle [SNCF](https://www.digital.sncf.com/startup/api).
 Départ / arrivée, retards, durée, mode (TER…), tout est intégré dans une interface configurable et traduite.
