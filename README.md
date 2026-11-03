@@ -1,6 +1,6 @@
 # 🚄 Intégration SNCF Trains pour Home Assistant
 
-![Home Assistant](https://img.shields.io/badge/Home--Assistant-2024.5+-blue?logo=home-assistant)
+![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2025.8.2%2B-blue?logo=home-assistant)
 ![Custom Component](https://img.shields.io/badge/Custom%20Component-oui-orange)
 ![Licence MIT](https://img.shields.io/badge/Licence-MIT-green)
 
