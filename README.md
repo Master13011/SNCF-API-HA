@@ -210,18 +210,18 @@ Compatible avec Home Assistant `2025.8+`.
 Structure :
 
 custom_components/sncf_trains/
-├── __init__.py        # Mise en place, migration, enregistrement de la carte
-├── api.py             # Client API SNCF (journeys, stations)
-├── calendar.py        # Entité calendrier
-├── config_flow.py     # Configuration, options, sous-entrées (trajets)
-├── const.py           # Constantes
-├── coordinator.py     # Récupération des données, intervalle adaptatif
-├── diagnostics.py     # Diagnostics
-├── helpers.py         # Dates, numéro de train, durée
-├── sensor.py          # Capteurs
-├── strings.json / translations/fr.json
-├── www/sncf-train-card.js   # Carte Lovelace
-└── tests/             # Tests pytest
+-  __init__.py        # Mise en place, migration, enregistrement de la carte
+-  api.py             # Client API SNCF (journeys, stations)
+-  calendar.py        # Entité calendrier
+-  config_flow.py     # Configuration, options, sous-entrées (trajets)
+-  const.py           # Constantes
+-  coordinator.py     # Récupération des données, intervalle adaptatif
+-  diagnostics.py     # Diagnostics
+-  helpers.py         # Dates, numéro de train, durée
+-  sensor.py          # Capteurs
+-  strings.json / translations/fr.json
+-  www/sncf-train-card.js   # Carte Lovelace
+-  tests/             # Tests pytest
 
 ---
 
