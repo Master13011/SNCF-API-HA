@@ -206,8 +206,7 @@ update_interval: 30000
 
 ### Exemple d'affichage
 
-![Exemple d'affichage](./assets/card_example.png)
-![Exemple d'affichage](./assets/card_example.png)
+<img width="375" height="580" alt="image" src="https://github.com/user-attachments/assets/2ee6865d-4f6d-48a1-ae2c-fb44022c72b4" />
 
 ---
 
