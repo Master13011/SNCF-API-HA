@@ -281,6 +281,18 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
                         ]
                         journey["train_units"] = len(elements)
                         journey["train_composition"] = units
+                        # Known Z 24500 vehicles are TER 2N NG (three cars).
+                        # Only label the family when every identified unit matches.
+                        import re
+
+                        if units and len(units) == len(elements) and all(
+                            re.search(r"Z\\s*24[5-7]\\d{2}$", unit, re.IGNORECASE)
+                            for unit in units
+                        ):
+                            journey["train_family"] = "Z 24500"
+                            journey["train_type"] = "TER 2N NG"
+                            journey["train_cars_estimated"] = 3 * len(units)
+
                     journey["train_length"] = detail.get("trainLength")
                 break
 
