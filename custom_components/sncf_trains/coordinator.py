@@ -157,6 +157,133 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
 
         return new_interval
 
+    @staticmethod
+    def _train_number(value: Any) -> str:
+        """Normalize train numbers without changing their significant digits."""
+        return "".join(str(value or "").split()).lstrip("0") or "0"
+
+    @staticmethod
+    def _matching_departure(journey: dict, item: dict, station_uic: str) -> bool:
+        """Match a train at the selected boarding station and on the same day."""
+        from datetime import datetime
+
+        sections = journey.get("sections") or []
+        section = next(
+            (s for s in sections if isinstance(s, dict)
+             and s.get("type") == "public_transport"),
+            {},
+        )
+        scheduled = section.get("base_departure_date_time") or journey.get(
+            "departure_date_time"
+        )
+        stop = next(
+            (s for s in (item.get("JourneyStop") or [])
+             if isinstance(s, dict) and s.get("uic") == station_uic),
+            None,
+        )
+        gc_time = (stop or item).get("scheduledTime")
+        try:
+            nav_time = parse_datetime(scheduled)
+            gc_dt = datetime.fromisoformat(gc_time.replace("Z", "+00:00"))
+            if nav_time is None or gc_dt.tzinfo is None:
+                return False
+            return abs((nav_time - gc_dt).total_seconds()) <= 20 * 60
+        except (TypeError, ValueError, AttributeError):
+            return False
+
+    async def _enrich_journeys(self, journeys: list[dict], station_uic: str) -> None:
+        """Fetch boarding platforms and, where available, train compositions."""
+        session = async_get_clientsession(self.hass)
+        url = (
+            "https://www.garesetconnexions.sncf/schedule-table/"
+            f"Departures/{station_uic}"
+        )
+        async with session.get(url, timeout=8) as response:
+            if response.status != 200:
+                _LOGGER.debug("G&C timetable HTTP %s", response.status)
+                return
+            timetable = await response.json(content_type=None)
+        if not isinstance(timetable, list):
+            return
+
+        # A train may pass this station after starting at an earlier station.
+        by_number: dict[str, list[dict]] = {}
+        for item in timetable:
+            if isinstance(item, dict):
+                by_number.setdefault(
+                    self._train_number(item.get("trainNumber")), []
+                ).append(item)
+
+        # Reuse course results for repeated journeys within the same refresh.
+        details_cache: dict[tuple[str, str], dict | None] = {}
+        for journey in journeys:
+            number = self._train_number(get_train_num(journey))
+            candidates = by_number.get(number, [])
+            if not candidates:
+                continue
+
+            # Timetable items may omit JourneyStop; fetch details before matching.
+            for item in candidates:
+                circulation_id = item.get("circulationId")
+                if not isinstance(circulation_id, str) or not circulation_id:
+                    continue
+                key = (station_uic, circulation_id)
+                if key not in details_cache:
+                    course_url = (
+                        "https://live-portal-back.azurewebsites.net/api/course/"
+                        f"{station_uic.lstrip('0')}/{circulation_id}"
+                    )
+                    try:
+                        async with session.get(
+                            course_url,
+                            params={"isDeparture": "true"},
+                            headers={"x-environment": "PROD",
+                                     "Origin": "https://green-pebble-049918603.7.azurestaticapps.net"},
+                            timeout=8,
+                        ) as response:
+                            if response.status == 200:
+                                payload = await response.json(content_type=None)
+                                details_cache[key] = (
+                                    payload[0] if isinstance(payload, list)
+                                    and payload and isinstance(payload[0], dict)
+                                    else None
+                                )
+                            else:
+                                details_cache[key] = None
+                    except (ClientError, asyncio.TimeoutError, ValueError) as err:
+                        _LOGGER.debug("G&C course unavailable: %s", err)
+                        details_cache[key] = None
+
+                detail = details_cache[key]
+                match_source = detail if detail else item
+                if not self._matching_departure(journey, match_source, station_uic):
+                    continue
+
+                stop = next(
+                    (s for s in (match_source.get("JourneyStop") or [])
+                     if isinstance(s, dict) and s.get("uic") == station_uic),
+                    None,
+                )
+                platform = (stop or match_source).get("platform") or {}
+                if isinstance(platform, dict) and platform.get("track"):
+                    journey["platform_track"] = str(platform["track"])
+
+                if detail:
+                    composition = detail.get("composition") or {}
+                    elements = composition.get("element") if isinstance(
+                        composition, dict
+                    ) else None
+                    if isinstance(elements, list):
+                        units = [
+                            str(e["numeroAffectation"])
+                            for e in elements
+                            if isinstance(e, dict) and e.get("numeroAffectation")
+                        ]
+                        journey["train_units"] = len(elements)
+                        journey["train_composition"] = units
+                    journey["train_length"] = detail.get("trainLength")
+                break
+
     async def _async_update_data(self) -> dict[str, Any]:
         """Récupère les données de l'API SNCF."""
 
@@ -274,33 +401,16 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
                 len(filtered_journeys),
             )
 
-            # Fetch platforms from Gares & Connexions
-            platforms_map = {}
-            try:
-                # Get station UIC from departure (e.g., stop_area:SNCF:87723197 -> 0087723197)
-                uic = departure.split(":")[-1]
-                if uic.isdigit():
-                    uic_formatted = uic.zfill(10)
-                    url_gc = f"https://www.garesetconnexions.sncf/schedule-table/Departures/{uic_formatted}"
-                    session = async_get_clientsession(self.hass)
-                    async with session.get(url_gc, timeout=5) as resp:
-                        if resp.status == 200:
-                            gc_data = await resp.json()
-                            if isinstance(gc_data, list):
-                                for item in gc_data:
-                                    t_num = str(item.get("trainNumber", ""))
-                                    plat_info = item.get("platform", {})
-                                    if isinstance(plat_info, dict):
-                                        track = plat_info.get("track")
-                                        if t_num and track:
-                                            platforms_map[t_num] = str(track)
-            except Exception as err:
-                _LOGGER.debug("Could not fetch Gares & Connexions platforms: %s", err)
-
-            for journey in filtered_journeys:
-                train_num = get_train_num(journey)
-                if train_num and train_num in platforms_map:
-                    journey["platform_track"] = platforms_map[train_num]
+            # Gares & Connexions: timetable plus optional circulation details.
+            # Keep SNCF/Navitia journeys usable when this unofficial API fails.
+            station_uic = departure.split(":")[-1]
+            if station_uic.isdigit() and filtered_journeys:
+                try:
+                    await self._enrich_journeys(
+                        filtered_journeys, station_uic.zfill(10)
+                    )
+                except Exception as err:
+                    _LOGGER.debug("Gares & Connexions enrichment failed: %s", err)
 
             trains[subentry_id] = filtered_journeys
 
