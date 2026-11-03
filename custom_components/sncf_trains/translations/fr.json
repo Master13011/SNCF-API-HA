@@ -8,13 +8,21 @@
         "data": {
           "api_key": "Clé API"
         }
+      },
+      "reauth_confirm": {
+        "title": "Réauthentification SNCF",
+        "description": "La clé API SNCF n'est plus valide. Saisissez une nouvelle clé.",
+        "data": {
+          "api_key": "Clé API"
+        }
       }
     },
     "error": {
       "invalid_api_key": "Clé API invalide. Veuillez vérifier et réessayer."
     },
     "abort": {
-      "reconfigure_successful": "Intégration reconfigurée avec succès"
+      "reconfigure_successful": "Intégration reconfigurée avec succès",
+      "reauth_successful": "Clé API mise à jour avec succès"
     }
   },
   "options": {

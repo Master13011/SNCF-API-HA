@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from typing import Any
 import asyncio
 from aiohttp import ClientError
@@ -68,6 +69,34 @@ class SncfTrainsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(
             step_id="user", data_schema=DATA_SCHEMA, errors=errors
+        )
+
+    async def async_step_reauth(
+        self, entry_data: Mapping[str, Any]
+    ) -> config_entries.ConfigFlowResult:
+        """Start a reauthentication flow when the API key is rejected."""
+        return await self.async_step_reauth_confirm()
+
+    async def async_step_reauth_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> config_entries.ConfigFlowResult:
+        """Ask for a new API key."""
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            session = async_get_clientsession(self.hass)
+            api = SncfApiClient(session, user_input[CONF_API_KEY])
+            if await self._validate_api_key(api):
+                return self.async_update_reload_and_abort(
+                    self._get_reauth_entry(),
+                    data_updates={CONF_API_KEY: user_input[CONF_API_KEY]},
+                )
+            errors["base"] = "invalid_api_key"
+
+        return self.async_show_form(
+            step_id="reauth_confirm",
+            data_schema=vol.Schema({vol.Required(CONF_API_KEY): str}),
+            errors=errors,
         )
 
     async def _validate_api_key(self, api: SncfApiClient):

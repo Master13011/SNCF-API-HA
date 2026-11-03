@@ -5,7 +5,7 @@ import logging
 from datetime import timedelta
 from typing import Any
 
-from aiohttp import ClientError
+from aiohttp import ClientError, ClientTimeout
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
@@ -51,6 +51,7 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
         super().__init__(
             hass,
             _LOGGER,
+            config_entry=entry,
             name="SNCF Train Journeys",
             update_interval=timedelta(minutes=self.update_interval_minutes),
         )
@@ -283,7 +284,9 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
                     uic_formatted = uic.zfill(10)
                     url_gc = f"https://www.garesetconnexions.sncf/schedule-table/Departures/{uic_formatted}"
                     session = async_get_clientsession(self.hass)
-                    async with session.get(url_gc, timeout=5) as resp:
+                    async with session.get(
+                        url_gc, timeout=ClientTimeout(total=5)
+                    ) as resp:
                         if resp.status == 200:
                             gc_data = await resp.json()
                             if isinstance(gc_data, list):

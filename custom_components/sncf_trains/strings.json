@@ -3,13 +3,21 @@
     "step": {
       "user": {
         "title": "Please set SNCF API Key"
+      },
+      "reauth_confirm": {
+        "title": "Reauthenticate SNCF",
+        "description": "The SNCF API key is no longer valid. Enter a new key.",
+        "data": {
+          "api_key": "API Key"
+        }
       }
     },
     "error": {
       "invalid_api_key": "API Key not found. Please retry."
     },
     "abort": {
-      "reconfigure_successful": "[%key:common::config_flow::abort::reconfigure_successful%]"
+      "reconfigure_successful": "[%key:common::config_flow::abort::reconfigure_successful%]",
+      "reauth_successful": "[%key:common::config_flow::abort::reauth_successful%]"
     }
   },
   "options": {

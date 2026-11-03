@@ -33,7 +33,6 @@ async def async_setup_entry(
     # Capteur global "Trajets"
     async_add_entities(
         [SncfJourneySensor(coordinator)],
-        update_before_add=True,
     )
 
     for subentry in entry.subentries.values():
@@ -67,7 +66,6 @@ async def async_setup_entry(
         async_add_entities(
             sensors,
             config_subentry_id=subentry.subentry_id,
-            update_before_add=True,
         )
 
 
@@ -369,9 +367,16 @@ class SncfAllTrainsLineSensor(
             "entry_type": DeviceEntryType.SERVICE,
         }
 
+        self._update_state()
+
     @callback
     def _handle_coordinator_update(self) -> None:
         """Update all trains values on a single line."""
+        self._update_state()
+        self.async_write_ha_state()
+
+    def _update_state(self) -> None:
+        """Compute state and attributes from the coordinator data."""
 
         journeys = self.coordinator.data.get(
             self.tid,
@@ -441,5 +446,3 @@ class SncfAllTrainsLineSensor(
         }
 
         self._attr_native_value = len(journeys)
-
-        self.async_write_ha_state()
