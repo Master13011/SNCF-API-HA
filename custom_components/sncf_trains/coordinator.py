@@ -14,6 +14,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from homeassistant.util import dt as dt_util
 
 from .helpers import format_time, get_duration, get_train_num, parse_datetime
+from .rolling_stock import analyser_composition
 from .api import SncfApiClient
 from .const import (
     CONF_API_KEY,
@@ -279,24 +280,7 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
                         composition, dict
                     ) else None
                     if isinstance(elements, list):
-                        units = [
-                            str(e["numeroAffectation"])
-                            for e in elements
-                            if isinstance(e, dict) and e.get("numeroAffectation")
-                        ]
-                        journey["train_units"] = len(elements)
-                        journey["train_composition"] = units
-                        # Known Z 24500 vehicles are TER 2N NG (three cars).
-                        # Only label the family when every identified unit matches.
-                        import re
-
-                        if units and len(units) == len(elements) and all(
-                            re.search(r"Z\\s*24[5-7]\\d{2}$", unit, re.IGNORECASE)
-                            for unit in units
-                        ):
-                            journey["train_family"] = "Z 24500"
-                            journey["train_type"] = "TER 2N NG"
-                            journey["train_cars"] = 3 * len(units)
+                        journey.update(analyser_composition(elements))
 
                     journey["train_length"] = detail.get("trainLength")
                 break
