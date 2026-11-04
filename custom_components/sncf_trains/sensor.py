@@ -332,6 +332,7 @@ class SncfTrainSensor(
             ),
             "train_num": get_train_num(journey),
             "platform": journey.get("platform_track", "N/A"),
+            "arrival_platform": journey.get("arrival_platform_track", "N/A"),
             "train_units": journey.get("train_units"),
             "train_composition": journey.get("train_composition", []),
             "train_length": journey.get("train_length"),
