@@ -204,9 +204,10 @@ class SncfTrainCard extends HTMLElement {
        <button type="button" class="arrow-btn" data-next aria-label="Sens suivant"><ha-icon icon="mdi:chevron-right"></ha-icon></button>
      </nav>
      <div class="direction-dots" aria-hidden="true">${groups.map((g,i)=>`<span class="${i===index?'active':''}"></span>`).join('')}</div>
+     <p class="cancellation-note"><ha-icon icon="mdi:information-outline"></ha-icon><span>Les trains supprimés ne sont pas pris en compte.</span></p>
      <div class="trains">${shown.length?shown.map(t=>this._line(t)).join(''):'<p class="empty">Aucun train disponible pour ce sens.</p>'}</div>
      ${count>visible?`<button type="button" class="more" data-more aria-expanded="${expanded}">${expanded?'Voir moins':`Voir plus (${count-visible} trains)`} <ha-icon icon="mdi:chevron-${expanded?'up':'down'}"></ha-icon></button>`:''}
-     <p class="cancellation-note"><ha-icon icon="mdi:information-outline"></ha-icon><span>Les trains supprimés ne sont pas pris en compte.</span></p>`;
+`;
   }
   _attachActions(groups){
     const panel=this.shadowRoot.querySelector('.panel');
