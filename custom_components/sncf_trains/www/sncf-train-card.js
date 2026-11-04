@@ -136,7 +136,7 @@ class SncfTrainCard extends HTMLElement {
     const trainType=String(a.train_type||'').trim();
     const showType=this.config.show_train_type&&trainType;
     const trainInfo=[
-      showPlatform?`<span class="train-detail platform-badge"><ha-icon icon="mdi:sign-direction"></ha-icon><span>Voie <strong>${this._escape(platform)}</strong></span></span>`:'',
+      showPlatform?`<span class="train-detail platform-inline"><ha-icon icon="mdi:sign-direction"></ha-icon>Voie <strong>${this._escape(platform)}</strong></span>`:'',
       showUnits?`<span class="train-detail"><ha-icon icon="mdi:train-variant"></ha-icon>${units} ${units===1?'rame':'rames'}</span>`:'',
       showType?`<span class="train-detail train-type">${this._escape(trainType)}</span>`:''
     ].filter(Boolean).join('');
@@ -144,7 +144,7 @@ class SncfTrainCard extends HTMLElement {
     return `<article class="train-row ${state}">
       <div class="journey">
         <div class="station depart"><span class="station-caption">Départ</span>
-          <div class="times">${time(baseDep,realDep)}</div></div>
+          <div class="times">${time(baseDep,realDep)}</div>${trainInfo?`<div class="train-details">${trainInfo}</div>`:''} </div>
         <div class="middle">
           ${this.config.show_track?`<div class="track">
             <div class="track-fill" style="width:${running||arrived?progress:0}%"></div>
@@ -260,7 +260,7 @@ class SncfTrainCard extends HTMLElement {
 :host{display:block;min-width:0;max-width:100%;overflow-anchor:none;--accent:var(--primary-color,#4c91ff)}
 *{box-sizing:border-box}
 ha-card{width:100%;max-width:100%;min-width:0;background:var(--ha-card-background,var(--card-background-color));color:var(--primary-text-color);border-radius:20px;overflow:hidden;border:1px solid var(--divider-color);box-shadow:0 8px 24px rgba(0,0,0,.08)}
-.train-details{display:flex;flex-wrap:wrap;gap:5px 12px;padding:0 12px 11px;font-size:.78rem;color:var(--secondary-text-color)}
+.train-details{display:flex;flex-wrap:wrap;gap:4px 10px;margin-top:6px;font-size:.72rem;color:var(--secondary-text-color);max-width:min(65vw,330px)}
 .train-detail{display:inline-flex;align-items:center;gap:4px;min-width:0}
 .train-detail ha-icon{--mdc-icon-size:15px;flex-shrink:0}
 .platform-badge{padding:4px 9px;border-radius:8px;background:color-mix(in srgb,var(--primary-color,#03a9f4) 14%,var(--card-background-color,#fff));border:1px solid color-mix(in srgb,var(--primary-color,#03a9f4) 40%,transparent);color:var(--primary-text-color);font-weight:650}
@@ -280,7 +280,7 @@ nav{display:flex;align-items:center;gap:7px;margin:2px 12px 0;padding:8px 5px;bo
 .trains{padding:2px 12px 0}
 .train-row{min-width:0;max-width:100%;overflow:hidden;padding:13px 12px 11px;margin:9px 0;border-radius:15px;border:1px solid var(--divider-color);background:var(--secondary-background-color,rgba(100,120,160,.07))}
 .journey{display:grid;grid-template-columns:minmax(0,auto) minmax(16px,1fr) minmax(0,auto);align-items:center;gap:8px;min-width:0;width:100%}
-.station{display:flex;flex-direction:column;gap:3px;min-width:0;max-width:100%}
+.station{display:flex;flex-direction:column;gap:3px;min-width:0;max-width:100%}\n.station.depart{overflow:visible}
 .station.arrive{text-align:right}
 .station-caption{font-size:.59rem;text-transform:uppercase;letter-spacing:.08em;color:var(--secondary-text-color);font-weight:650}
 .times{display:flex;flex-direction:column;gap:2px;line-height:1.15;font-variant-numeric:tabular-nums}
