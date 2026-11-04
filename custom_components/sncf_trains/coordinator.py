@@ -282,6 +282,44 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
                     journey["platform_track"] = str(platform["track"])
 
                 if detail:
+                    # The arrival stop is the destination of the train section,
+                    # not necessarily the final terminus of the circulation.
+                    section = next(
+                        (part for part in (journey.get("sections") or [])
+                         if isinstance(part, dict)
+                         and part.get("type") == "public_transport"),
+                        None,
+                    )
+                    destination = (section or {}).get("to") or {}
+                    if isinstance(destination, dict):
+                        destination_ids = [
+                            destination.get("id"),
+                            (destination.get("stop_point") or {}).get("id")
+                            if isinstance(destination.get("stop_point"), dict) else None,
+                            (destination.get("stop_area") or {}).get("id")
+                            if isinstance(destination.get("stop_area"), dict) else None,
+                        ]
+                        arrival_uic = None
+                        for identifier in destination_ids:
+                            if not isinstance(identifier, str):
+                                continue
+                            found = re.search(
+                                r"(?<![0-9])([0-9]{8}|00[0-9]{8})(?![0-9])",
+                                identifier,
+                            )
+                            if found:
+                                arrival_uic = found.group(1).zfill(10)
+                                break
+                        if arrival_uic:
+                            arrival_stop = next(
+                                (stop for stop in (detail.get("JourneyStop") or [])
+                                 if isinstance(stop, dict)
+                                 and str(stop.get("uic", "")).zfill(10) == arrival_uic),
+                                None,
+                            )
+                            arrival_track = (arrival_stop or {}).get("platform") or {}
+                            if isinstance(arrival_track, dict) and arrival_track.get("track"):
+                                journey["arrival_platform_track"] = str(arrival_track["track"])
                     composition = detail.get("composition") or {}
                     elements = composition.get("element") if isinstance(
                         composition, dict
