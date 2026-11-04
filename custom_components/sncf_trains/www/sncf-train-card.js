@@ -133,13 +133,13 @@ class SncfTrainCard extends HTMLElement {
     const showPlatform=this.config.show_platform&&platform&&!['N/A','UNKNOWN','UNAVAILABLE','NONE'].includes(platform.toUpperCase());
     const arrivalPlatform=String(a.arrival_platform||'').trim();
     const showArrivalPlatform=this.config.show_arrival_platform&&arrivalPlatform&&!['N/A','UNKNOWN','UNAVAILABLE','NONE'].includes(arrivalPlatform.toUpperCase());
-    const arrivalInfo=showArrivalPlatform?`<div class="train-details arrival-details"><span class="train-detail platform-inline"><ha-icon icon="mdi:sign-direction"></ha-icon>Voie <strong>${this._escape(arrivalPlatform)}</strong></span></div>`:'';
+    const arrivalInfo=showArrivalPlatform?`<div class="platform-line arrival-platform"><span class="platform-label">Voie</span><strong>${this._escape(arrivalPlatform)}</strong></div>`:'';
     const units=Number(a.train_units);
     const showUnits=this.config.show_train_units&&Number.isInteger(units)&&units>0;
     const trainType=String(a.train_type||'').trim();
     const showType=this.config.show_train_type&&trainType;
+    const departureInfo=showPlatform?`<div class="platform-line departure-platform"><span class="platform-label">Voie</span><strong>${this._escape(platform)}</strong></div>`:'';
     const trainInfo=[
-      showPlatform?`<span class="train-detail platform-inline"><ha-icon icon="mdi:sign-direction"></ha-icon>Voie <strong>${this._escape(platform)}</strong></span>`:'',
       showUnits?`<span class="train-detail"><ha-icon icon="mdi:train-variant"></ha-icon>${units} ${units===1?'rame':'rames'}</span>`:'',
       showType?`<span class="train-detail train-type">${this._escape(trainType)}</span>`:''
     ].filter(Boolean).join('');
@@ -147,7 +147,7 @@ class SncfTrainCard extends HTMLElement {
     return `<article class="train-row ${state}">
       <div class="journey">
         <div class="station depart"><span class="station-caption">Départ</span>
-          <div class="times">${time(baseDep,realDep)}</div>${trainInfo?`<div class="train-details">${trainInfo}</div>`:''} </div>
+          <div class="times">${time(baseDep,realDep)}</div>${departureInfo}</div>
         <div class="middle">
           ${this.config.show_track?`<div class="track">
             <div class="track-fill" style="width:${running||arrived?progress:0}%"></div>
@@ -159,6 +159,7 @@ class SncfTrainCard extends HTMLElement {
       </div>
       <div class="train-footer">
         <div class="train-meta"><span class="ter-pill">TER</span>
+          ${trainInfo?`<span class="train-details">${trainInfo}</span>`:''}
           ${this.config.show_duration&&durationLabel?`<span class="duration"><ha-icon icon="mdi:clock-outline"></ha-icon>${durationLabel}</span>`:''}
           ${countdown}
         </div>
@@ -262,8 +263,8 @@ class SncfTrainCard extends HTMLElement {
 :host{display:block;min-width:0;max-width:100%;overflow-anchor:none;--accent:var(--primary-color,#4c91ff)}
 *{box-sizing:border-box}
 ha-card{width:100%;max-width:100%;min-width:0;background:var(--ha-card-background,var(--card-background-color));color:var(--primary-text-color);border-radius:20px;overflow:hidden;border:1px solid var(--divider-color);box-shadow:0 8px 24px rgba(0,0,0,.08)}
-.train-details{display:flex;flex-wrap:wrap;gap:4px 10px;margin-top:6px;font-size:.72rem;color:var(--secondary-text-color);max-width:min(65vw,330px)}
-.arrival-details{justify-content:flex-end;margin-left:auto}\n.train-detail{display:inline-flex;align-items:center;gap:4px;min-width:0}
+.train-details{display:inline-flex;flex-wrap:wrap;align-items:center;gap:4px 10px;font-size:.72rem;color:var(--secondary-text-color);min-width:0}
+.platform-line{display:inline-flex;align-items:center;gap:5px;margin-top:7px;font-size:.79rem;font-weight:700;white-space:nowrap;color:var(--primary-text-color)}\n.platform-line strong{font-size:1.12rem;font-weight:850;color:var(--primary-color,#03a9f4)}\n.arrival-platform{align-self:flex-end;justify-content:flex-end}\n.train-detail{display:inline-flex;align-items:center;gap:4px;min-width:0}
 .train-detail ha-icon{--mdc-icon-size:15px;flex-shrink:0}
 .platform-inline{font-weight:650;color:var(--primary-text-color)}
 .platform-inline strong{font-size:.95rem;font-weight:850;color:var(--primary-color,#03a9f4)}
