@@ -25,6 +25,7 @@ class SncfTrainCard extends HTMLElement {
       title:'Trains SNCF',train_lines:10,visible_trains:3,direction_titles:'',animation_duration:30,update_interval:30,
       train_emoji:'mdi:train',train_emoji_axial_symmetry:false,
       show_track:true,show_duration:true,show_status:true,show_countdown:true,
+      show_platform:true,show_train_units:true,show_train_type:true,
       ...config,device_id:ids
     };
     // Compatibilité : anciennes configurations exprimées en millisecondes.
@@ -51,6 +52,7 @@ class SncfTrainCard extends HTMLElement {
         {name:'animation_duration',selector:{number:{min:0,max:100,step:1}}},
         {name:'update_interval',selector:{number:{min:5,max:3600,step:1}}},
         bool('show_countdown'),bool('show_track'),bool('show_duration'),bool('show_status'),
+        bool('show_platform'),bool('show_train_units'),bool('show_train_type'),
         {name:'train_emoji',selector:{icon:{}}},
         bool('train_emoji_axial_symmetry')
       ],
@@ -59,7 +61,9 @@ class SncfTrainCard extends HTMLElement {
         animation_duration:'Afficher le train avant départ (minutes)',
         update_interval:'Actualisation (secondes)',
         show_countdown:'Compte à rebours avant le départ',show_track:'Afficher le rail',show_duration:'Afficher la durée',
-        show_status:'Afficher le statut',train_emoji:'Icône du train',
+        show_status:'Afficher le statut',show_platform:'Afficher la voie de départ',
+        show_train_units:'Afficher le nombre de rames',show_train_type:'Afficher le matériel roulant',
+        train_emoji:'Icône du train',
         train_emoji_axial_symmetry:'Inverser horizontalement le train'
       })[s.name]
     };
@@ -125,6 +129,17 @@ class SncfTrainCard extends HTMLElement {
       ?`<span class="original">${this._escape(base)}</span><span class="actual">${this._escape(real)}</span>`
       :`<span class="actual">${this._escape(real)}</span>`;
     const durationLabel=Number.isFinite(duration)&&duration>0?`${Math.round(duration)} min`:'';
+    const platform=String(a.platform||'').trim();
+    const showPlatform=this.config.show_platform&&platform&&!['N/A','UNKNOWN','UNAVAILABLE','NONE'].includes(platform.toUpperCase());
+    const units=Number(a.train_units);
+    const showUnits=this.config.show_train_units&&Number.isInteger(units)&&units>0;
+    const trainType=String(a.train_type||'').trim();
+    const showType=this.config.show_train_type&&trainType;
+    const trainInfo=[
+      showPlatform?`<span class="train-detail"><ha-icon icon="mdi:sign-direction"></ha-icon>Voie ${this._escape(platform)}</span>`:'',
+      showUnits?`<span class="train-detail"><ha-icon icon="mdi:train-variant"></ha-icon>${units} ${units===1?'rame':'rames'}</span>`:'',
+      showType?`<span class="train-detail train-type">${this._escape(trainType)}</span>`:''
+    ].filter(Boolean).join('');
     const countdown=this.config.show_countdown&&now<dep?`<span class="countdown" data-departure="${dep}">${this._countdown(dep,now)}</span>`:'';
     return `<article class="train-row ${state}">
       <div class="journey">
@@ -146,6 +161,7 @@ class SncfTrainCard extends HTMLElement {
         </div>
         ${this.config.show_status?`<span class="status"><span class="dot"></span>${label}</span>`:''}
       </div>
+      ${trainInfo?`<div class="train-details">${trainInfo}</div>`:'' }
     </article>`;
   }
   _countdown(dep,now=Date.now()){
@@ -219,7 +235,8 @@ class SncfTrainCard extends HTMLElement {
       const signature=JSON.stringify(groups.map(g=>[g.deviceId,g.trains.map(t=>[
         t.entity_id,t.attributes.departure_time,t.attributes.arrival_time,
         t.attributes.base_departure_time,t.attributes.base_arrival_time,
-        t.attributes.delay_minutes,t.attributes.has_delay
+        t.attributes.delay_minutes,t.attributes.has_delay,
+        t.attributes.platform,t.attributes.train_units,t.attributes.train_type
       ])]));
       // Avoid replacing the DOM on every Home Assistant state update.
       // This prevents focus/scroll jumps on iOS.
