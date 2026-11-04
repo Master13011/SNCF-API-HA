@@ -361,6 +361,9 @@ class SncfAllTrainsLineSensor(
         super().__init__(coordinator)
 
         self.tid = train_id
+        subentry = coordinator.entry.subentries[train_id]
+        departure_name = subentry.data.get(CONF_DEPARTURE_NAME, "Départ")
+        arrival_name = subentry.data.get(CONF_ARRIVAL_NAME, "Arrivée")
 
         self._attr_name = "Tous les trains (ligne)"
 
@@ -370,7 +373,7 @@ class SncfAllTrainsLineSensor(
             "identifiers": {
                 (DOMAIN, train_id),
             },
-            "name": "SNCF",
+            "name": f"SNCF {departure_name} → {arrival_name}",
             "manufacturer": "Master13011",
             "model": "API",
             "entry_type": DeviceEntryType.SERVICE,
