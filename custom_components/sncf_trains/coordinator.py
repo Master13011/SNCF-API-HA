@@ -208,7 +208,9 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
                 return
             timetable = await response.json(content_type=None)
         if not isinstance(timetable, list):
+            _LOGGER.debug("G&C timetable unexpected format at %s: %s", station_uic, type(timetable).__name__)
             return
+        _LOGGER.debug("G&C station %s: %d departures", station_uic, len(timetable))
 
         # A train may pass this station after starting at an earlier station.
         by_number: dict[str, list[dict]] = {}
@@ -224,6 +226,7 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
             number = self._train_number(get_train_num(journey))
             candidates = by_number.get(number, [])
             if not candidates:
+                _LOGGER.debug("G&C no departure match for train %s at station %s", number, station_uic)
                 continue
 
             # Timetable items may omit JourneyStop; fetch details before matching.
@@ -266,11 +269,12 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
                 detail = details_cache[key]
                 match_source = detail if detail else item
                 if not self._matching_departure(journey, match_source, station_uic):
+                    _LOGGER.debug("G&C time mismatch for train %s at station %s", number, station_uic)
                     continue
 
                 stop = next(
                     (s for s in (match_source.get("JourneyStop") or [])
-                     if isinstance(s, dict) and s.get("uic") == station_uic),
+                     if isinstance(s, dict) and str(s.get("uic", "")).zfill(10) == station_uic),
                     None,
                 )
                 platform = (stop or match_source).get("platform") or {}
