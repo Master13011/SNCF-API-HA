@@ -1,0 +1,43 @@
+name: Package HACS release ZIP
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing release tag (e.g. 1.3.6)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Determine release tag
+        id: release
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          INPUT_TAG: ${{ inputs.tag }}
+        run: echo "tag=${RELEASE_TAG:-$INPUT_TAG}" >> "$GITHUB_OUTPUT"
+
+      - name: Check out release tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.release.outputs.tag }}
+
+      - name: Package Home Assistant integration
+        run: |
+          test -f custom_components/sncf_trains/manifest.json
+          cd custom_components
+          zip -r "$GITHUB_WORKSPACE/sncf_trains_ha.zip" sncf_trains \
+            -x '*/__pycache__/*' '*.pyc' '*/.DS_Store'
+
+      - name: Attach ZIP to GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release.outputs.tag }}
+        run: gh release upload "$TAG" sncf_trains_ha.zip --clobber
