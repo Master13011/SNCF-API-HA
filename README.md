@@ -108,13 +108,84 @@ Obtenez votre clé ici : https://numerique.sncf.com/startup/api/ -> Site HS
 - Retard estimé
 - Durée totale (`duration_minutes`)
 - Mode, direction, numéro
-- Plateforme
+- Voie de départ (`platform`) et d'arrivée (`arrival_platform`) lorsqu'elles sont disponibles
+- Nombre de rames (`train_units`), composition et type de matériel lorsqu'ils sont connus
+
+---
+
+## 🔔 Exemples d'automatisations Home Assistant
+
+Les exemples suivants utilisent les **attributs d'un capteur individuel de train** (et non le capteur récapitulatif de la ligne). Remplacez `sensor.sncf_train_1_exemple` par l'identifiant réel visible dans **Outils de développement → États**, ainsi que `notify.mobile_app_mon_telephone` par votre service de notification.
+
+> Les capteurs individuels correspondent à des positions dans la liste des prochains trains : un même capteur peut représenter une autre circulation après une mise à jour. Les exemples ci-dessous incluent donc le numéro du train dans le message. Ils notifient un **changement d'attribut**, pas systématiquement chaque actualisation. Si l'attribut est inconnu, aucune notification n'est envoyée.
+
+### ⏱️ Notifier un retard annoncé ou modifié
+
+Cette automatisation notifie lorsqu'un retard positif est renseigné ou change sur le capteur surveillé.
+
+```yaml
+alias: "SNCF - Notification de retard"
+description: "Signale un retard nouveau ou modifié sur le train suivi."
+triggers:
+  - trigger: state
+    entity_id: sensor.sncf_train_1_exemple
+    attribute: delay_minutes
+conditions:
+  - condition: template
+    value_template: >
+      {{ trigger.to_state is not none
+         and trigger.to_state.attributes.get('delay_minutes', 0) | int(0) > 0 }}
+actions:
+  - action: notify.mobile_app_mon_telephone
+    data:
+      title: "🚆 SNCF - Retard"
+      message: >-
+        Train {{ state_attr('sensor.sncf_train_1_exemple', 'train_num') or 'inconnu' }} :
+        {{ state_attr('sensor.sncf_train_1_exemple', 'delay_minutes') | int(0) }}
+        min de retard.
+mode: single
+```
+
+### 🚃 Notifier la taille / composition du train
+
+Cette automatisation notifie quand le **nombre de rames** devient disponible ou change. Elle ajoute le type de matériel et la composition lorsque ces données sont connues. Le nombre de voitures est facultatif et n'est pas assimilé au nombre de rames.
+
+```yaml
+alias: "SNCF - Notification de composition"
+description: "Signale le nombre de rames lorsqu'il est disponible ou modifié."
+triggers:
+  - trigger: state
+    entity_id: sensor.sncf_train_1_exemple
+    attribute: train_units
+conditions:
+  - condition: template
+    value_template: >
+      {{ trigger.to_state is not none
+         and trigger.to_state.attributes.get('train_units') | int(0) > 0 }}
+actions:
+  - action: notify.mobile_app_mon_telephone
+    data:
+      title: "🚃 SNCF - Composition"
+      message: >-
+        Train {{ state_attr('sensor.sncf_train_1_exemple', 'train_num') or 'inconnu' }} :
+        {% set units = state_attr('sensor.sncf_train_1_exemple', 'train_units') | int(0) %}
+        {{ units }} {{ 'rame' if units == 1 else 'rames' }}.
+        {% set material = state_attr('sensor.sncf_train_1_exemple', 'train_type') %}
+        {% if material %}Matériel : {{ material }}.{% endif %}
+        {% set composition = state_attr('sensor.sncf_train_1_exemple', 'train_composition') %}
+        {% if composition %}
+          Composition : {{ composition | join(', ') if composition is sequence and composition is not string else composition }}.
+        {% endif %}
+mode: single
+```
+
+**À noter :** le déclenchement dépend de l'évolution de `delay_minutes` ou `train_units`. Un changement de train sans changement de la valeur surveillée ne provoquera pas de notification. Pour un suivi dédié à un numéro de train précis, ajoutez une condition sur l'attribut `train_num`.
 
 ---
 
 ## 🎨 Carte Lovelace — SNCF Train Card
 
-La carte `sncf-train-card` est **automatiquement disponible** dans le sélecteur de cartes dès l'installation de l'intégration.
+La carte `sncf-train-card` est fournie dans le dossier `www` de l'intégration. Si elle n'apparaît pas dans le sélecteur de cartes, vérifier que la ressource Lovelace est déclarée en tant que **Module JavaScript** : `/sncf_trains/sncf-train-card.js`. Après une mise à jour, actualiser le cache du navigateur (au besoin en ajoutant un paramètre `?v=...` à l'URL de la ressource).
 
 ### Ajouter la carte
 
