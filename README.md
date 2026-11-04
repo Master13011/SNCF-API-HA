@@ -293,6 +293,8 @@ custom_components/sncf_trains/
 -  strings.json / translations/fr.json
 -  www/sncf-train-card.js   # Carte Lovelace
 -  tests/             # Tests pytest
+-  rolling_stock.py    # familles de matériels
+
 
 ---
 
