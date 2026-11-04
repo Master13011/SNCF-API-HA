@@ -25,6 +25,7 @@ class SncfTrainCard extends HTMLElement {
       title:'Trains SNCF',train_lines:10,visible_trains:3,direction_titles:'',animation_duration:30,update_interval:30,
       train_emoji:'mdi:train',train_emoji_axial_symmetry:false,
       show_track:true,show_duration:true,show_status:true,show_countdown:true,
+      show_platform:true,show_arrival_platform:true,show_train_units:true,show_train_type:true,
       ...config,device_id:ids
     };
     // Compatibilité : anciennes configurations exprimées en millisecondes.
@@ -40,7 +41,7 @@ class SncfTrainCard extends HTMLElement {
     this.render();
   }
   static getConfigForm() {
-    const bool=n=>({name:n,selector:{boolean:{}}});
+    const bool=n=>({name:n,default:true,selector:{boolean:{}}});
     return {
       schema:[
         {name:'device_id',required:true,selector:{device:{multiple:true,filter:{integration:'sncf_trains'}}}},
@@ -51,6 +52,7 @@ class SncfTrainCard extends HTMLElement {
         {name:'animation_duration',selector:{number:{min:0,max:100,step:1}}},
         {name:'update_interval',selector:{number:{min:5,max:3600,step:1}}},
         bool('show_countdown'),bool('show_track'),bool('show_duration'),bool('show_status'),
+        bool('show_platform'),bool('show_arrival_platform'),bool('show_train_units'),bool('show_train_type'),
         {name:'train_emoji',selector:{icon:{}}},
         bool('train_emoji_axial_symmetry')
       ],
@@ -59,12 +61,14 @@ class SncfTrainCard extends HTMLElement {
         animation_duration:'Afficher le train avant départ (minutes)',
         update_interval:'Actualisation (secondes)',
         show_countdown:'Compte à rebours avant le départ',show_track:'Afficher le rail',show_duration:'Afficher la durée',
-        show_status:'Afficher le statut',train_emoji:'Icône du train',
+        show_status:'Afficher le statut',show_platform:'Afficher la voie de départ',show_arrival_platform:'Afficher la voie d’arrivée',
+        show_train_units:'Afficher le nombre de rames',show_train_type:'Afficher le matériel roulant',
+        train_emoji:'Icône du train',
         train_emoji_axial_symmetry:'Inverser horizontalement le train'
       })[s.name]
     };
   }
-  static getStubConfig(){return {device_id:[],title:'Trains SNCF',train_lines:5,show_track:true};}
+  static getStubConfig(){return {device_id:[],title:'Trains SNCF',train_lines:5,visible_trains:3,show_track:true,show_duration:true,show_status:true,show_countdown:true,show_platform:true,show_arrival_platform:true,show_train_units:true,show_train_type:true};}
   set hass(value){this._hass=value;this.render();}
   connectedCallback(){this._startTimer();}
   disconnectedCallback(){this._stopTimer();this._renderId++;}
@@ -125,11 +129,25 @@ class SncfTrainCard extends HTMLElement {
       ?`<span class="original">${this._escape(base)}</span><span class="actual">${this._escape(real)}</span>`
       :`<span class="actual">${this._escape(real)}</span>`;
     const durationLabel=Number.isFinite(duration)&&duration>0?`${Math.round(duration)} min`:'';
+    const platform=String(a.platform||'').trim();
+    const showPlatform=this.config.show_platform&&platform&&!['N/A','UNKNOWN','UNAVAILABLE','NONE'].includes(platform.toUpperCase());
+    const arrivalPlatform=String(a.arrival_platform||'').trim();
+    const showArrivalPlatform=this.config.show_arrival_platform&&arrivalPlatform&&!['N/A','UNKNOWN','UNAVAILABLE','NONE'].includes(arrivalPlatform.toUpperCase());
+    const arrivalInfo=showArrivalPlatform?`<div class="platform-line arrival-platform"><span class="platform-label">Voie</span><strong>${this._escape(arrivalPlatform)}</strong></div>`:'';
+    const units=Number(a.train_units);
+    const showUnits=this.config.show_train_units&&Number.isInteger(units)&&units>0;
+    const trainType=String(a.train_type||'').trim();
+    const showType=this.config.show_train_type&&trainType;
+    const departureInfo=showPlatform?`<div class="platform-line departure-platform"><span class="platform-label">Voie</span><strong>${this._escape(platform)}</strong></div>`:'';
+    const trainInfo=[
+      showUnits?`<span class="train-detail"><ha-icon icon="mdi:train-variant"></ha-icon>${units} ${units===1?'rame':'rames'}</span>`:'',
+      showType?`<span class="train-detail train-type">${this._escape(trainType)}</span>`:''
+    ].filter(Boolean).join('');
     const countdown=this.config.show_countdown&&now<dep?`<span class="countdown" data-departure="${dep}">${this._countdown(dep,now)}</span>`:'';
     return `<article class="train-row ${state}">
       <div class="journey">
         <div class="station depart"><span class="station-caption">Départ</span>
-          <div class="times">${time(baseDep,realDep)}</div></div>
+          <div class="times">${time(baseDep,realDep)}</div>${departureInfo}</div>
         <div class="middle">
           ${this.config.show_track?`<div class="track">
             <div class="track-fill" style="width:${running||arrived?progress:0}%"></div>
@@ -137,10 +155,11 @@ class SncfTrainCard extends HTMLElement {
           </div>`:'<ha-icon icon="mdi:arrow-right"></ha-icon>'}
         </div>
         <div class="station arrive"><span class="station-caption">Arrivée</span>
-          <div class="times">${time(baseArr,realArr)}</div></div>
+          <div class="times">${time(baseArr,realArr)}</div>${arrivalInfo}</div>
       </div>
       <div class="train-footer">
         <div class="train-meta"><span class="ter-pill">TER</span>
+          ${trainInfo?`<span class="train-details">${trainInfo}</span>`:''}
           ${this.config.show_duration&&durationLabel?`<span class="duration"><ha-icon icon="mdi:clock-outline"></ha-icon>${durationLabel}</span>`:''}
           ${countdown}
         </div>
@@ -185,9 +204,10 @@ class SncfTrainCard extends HTMLElement {
        <button type="button" class="arrow-btn" data-next aria-label="Sens suivant"><ha-icon icon="mdi:chevron-right"></ha-icon></button>
      </nav>
      <div class="direction-dots" aria-hidden="true">${groups.map((g,i)=>`<span class="${i===index?'active':''}"></span>`).join('')}</div>
+     <p class="cancellation-note"><ha-icon icon="mdi:information-outline"></ha-icon><span>Les trains supprimés ne sont pas pris en compte.</span></p>
      <div class="trains">${shown.length?shown.map(t=>this._line(t)).join(''):'<p class="empty">Aucun train disponible pour ce sens.</p>'}</div>
      ${count>visible?`<button type="button" class="more" data-more aria-expanded="${expanded}">${expanded?'Voir moins':`Voir plus (${count-visible} trains)`} <ha-icon icon="mdi:chevron-${expanded?'up':'down'}"></ha-icon></button>`:''}
-     <p class="cancellation-note"><ha-icon icon="mdi:information-outline"></ha-icon><span>Les trains supprimés ne sont pas pris en compte.</span></p>`;
+`;
   }
   _attachActions(groups){
     const panel=this.shadowRoot.querySelector('.panel');
@@ -219,7 +239,8 @@ class SncfTrainCard extends HTMLElement {
       const signature=JSON.stringify(groups.map(g=>[g.deviceId,g.trains.map(t=>[
         t.entity_id,t.attributes.departure_time,t.attributes.arrival_time,
         t.attributes.base_departure_time,t.attributes.base_arrival_time,
-        t.attributes.delay_minutes,t.attributes.has_delay
+        t.attributes.delay_minutes,t.attributes.has_delay,
+        t.attributes.platform,t.attributes.arrival_platform,t.attributes.train_units,t.attributes.train_type
       ])]));
       // Avoid replacing the DOM on every Home Assistant state update.
       // This prevents focus/scroll jumps on iOS.
@@ -243,6 +264,12 @@ class SncfTrainCard extends HTMLElement {
 :host{display:block;min-width:0;max-width:100%;overflow-anchor:none;--accent:var(--primary-color,#4c91ff)}
 *{box-sizing:border-box}
 ha-card{width:100%;max-width:100%;min-width:0;background:var(--ha-card-background,var(--card-background-color));color:var(--primary-text-color);border-radius:20px;overflow:hidden;border:1px solid var(--divider-color);box-shadow:0 8px 24px rgba(0,0,0,.08)}
+.train-details{display:inline-flex;flex-wrap:wrap;align-items:center;gap:4px 10px;font-size:.72rem;color:var(--secondary-text-color);min-width:0}
+.platform-line{display:inline-flex;align-items:center;gap:5px;margin-top:7px;font-size:.79rem;font-weight:700;white-space:nowrap;color:var(--primary-text-color)}\n.platform-line strong{font-size:1.12rem;font-weight:850;color:var(--primary-color,#03a9f4)}\n.arrival-platform{align-self:flex-end;justify-content:flex-end}\n.train-detail{display:inline-flex;align-items:center;gap:4px;min-width:0}
+.train-detail ha-icon{--mdc-icon-size:15px;flex-shrink:0}
+.platform-inline{font-weight:650;color:var(--primary-text-color)}
+.platform-inline strong{font-size:.95rem;font-weight:850;color:var(--primary-color,#03a9f4)}
+.train-type{overflow-wrap:anywhere}
 header{display:flex;align-items:center;gap:10px;padding:17px 16px 12px;font-weight:750;font-size:1.1rem}
 header ha-icon{color:var(--accent)}
 .panel,.trains{overflow-anchor:none;min-width:0;max-width:100%}
@@ -257,7 +284,7 @@ nav{display:flex;align-items:center;gap:7px;margin:2px 12px 0;padding:8px 5px;bo
 .trains{padding:2px 12px 0}
 .train-row{min-width:0;max-width:100%;overflow:hidden;padding:13px 12px 11px;margin:9px 0;border-radius:15px;border:1px solid var(--divider-color);background:var(--secondary-background-color,rgba(100,120,160,.07))}
 .journey{display:grid;grid-template-columns:minmax(0,auto) minmax(16px,1fr) minmax(0,auto);align-items:center;gap:8px;min-width:0;width:100%}
-.station{display:flex;flex-direction:column;gap:3px;min-width:0;max-width:100%}
+.station{display:flex;flex-direction:column;gap:3px;min-width:0;max-width:100%}\n.station.depart{overflow:visible}
 .station.arrive{text-align:right}
 .station-caption{font-size:.59rem;text-transform:uppercase;letter-spacing:.08em;color:var(--secondary-text-color);font-weight:650}
 .times{display:flex;flex-direction:column;gap:2px;line-height:1.15;font-variant-numeric:tabular-nums}

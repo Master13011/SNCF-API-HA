@@ -33,7 +33,6 @@ async def async_setup_entry(
     # Capteur global "Trajets"
     async_add_entities(
         [SncfJourneySensor(coordinator)],
-        update_before_add=True,
     )
 
     for subentry in entry.subentries.values():
@@ -67,7 +66,6 @@ async def async_setup_entry(
         async_add_entities(
             sensors,
             config_subentry_id=subentry.subentry_id,
-            update_before_add=True,
         )
 
 
@@ -332,6 +330,14 @@ class SncfTrainSensor(
             ),
             "train_num": get_train_num(journey),
             "platform": journey.get("platform_track", "N/A"),
+            "arrival_platform": journey.get("arrival_platform_track", "N/A"),
+            "train_units": journey.get("train_units"),
+            "train_composition": journey.get("train_composition", []),
+            "train_length": journey.get("train_length"),
+            "train_family": journey.get("train_family"),
+            "train_type": journey.get("train_type"),
+            "train_cars": journey.get("train_cars"),
+            "train_cars_source": journey.get("train_cars_source", "inconnue"),
         }
 
 
@@ -354,7 +360,9 @@ class SncfAllTrainsLineSensor(
         super().__init__(coordinator)
 
         self.tid = train_id
-
+        subentry = coordinator.entry.subentries[train_id]
+        departure_name = subentry.data.get(CONF_DEPARTURE_NAME, "Départ")
+        arrival_name = subentry.data.get(CONF_ARRIVAL_NAME, "Arrivée")
         self._attr_name = "Tous les trains (ligne)"
 
         self._attr_unique_id = f"{train_id}_all_trains_line"
@@ -363,15 +371,22 @@ class SncfAllTrainsLineSensor(
             "identifiers": {
                 (DOMAIN, train_id),
             },
-            "name": "SNCF",
+            "name": f"SNCF {departure_name} → {arrival_name}",
             "manufacturer": "Master13011",
             "model": "API",
             "entry_type": DeviceEntryType.SERVICE,
         }
 
+        self._update_state()
+
     @callback
     def _handle_coordinator_update(self) -> None:
         """Update all trains values on a single line."""
+        self._update_state()
+        self.async_write_ha_state()
+
+    def _update_state(self) -> None:
+        """Compute state and attributes from the coordinator data."""
 
         journeys = self.coordinator.data.get(
             self.tid,
@@ -441,5 +456,3 @@ class SncfAllTrainsLineSensor(
         }
 
         self._attr_native_value = len(journeys)
-
-        self.async_write_ha_state()

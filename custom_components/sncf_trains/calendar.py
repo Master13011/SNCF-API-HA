@@ -45,7 +45,6 @@ async def async_setup_entry(
 
     async_add_entities(
         [SNCFCalendar(coordinator)],
-        update_before_add=True,
     )
 
 
@@ -89,6 +88,8 @@ class SNCFCalendar(
             "entry_type": DeviceEntryType.SERVICE,
         }
 
+        self._update_event()
+
     @property
     def event(self) -> MyCalendarEvent | None:
         """Return the current or next upcoming event."""
@@ -100,6 +101,11 @@ class SNCFCalendar(
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
+        self._update_event()
+        self.async_write_ha_state()
+
+    def _update_event(self) -> None:
+        """Compute the current/next event from the coordinator data."""
         events = self._fetch_journeys()
 
         if events:
@@ -121,8 +127,6 @@ class SNCFCalendar(
         else:
             self._event = None
             self._attr_extra_state_attributes = {}
-
-        self.async_write_ha_state()
 
     async def async_get_events(
         self,
