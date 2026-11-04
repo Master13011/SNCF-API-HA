@@ -102,7 +102,7 @@ def identifier_materiel(reference: str) -> dict[str, Any] | None:
 
     # Évite de lire les chiffres d'un UIC comme une référence de rame.
     match = re.search(
-        r"(?<![A-Z0-9])(BB|[ZBXU])\\s*([0-9]{4,5})([ML])?(?![A-Z0-9])",
+        r"(?<![A-Z0-9])(BB|[ZBXU])[ ]*([0-9]{4,5})([ML])?(?![A-Z0-9])",
         raw,
     )
     if not match:
