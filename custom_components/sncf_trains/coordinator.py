@@ -422,9 +422,15 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
                         None,
                     )
                     if not section:
+                        _LOGGER.debug(
+                            "G&C: train %s has no public_transport section; section types=%s",
+                            get_train_num(journey),
+                            [part.get("type") for part in sections if isinstance(part, dict)],
+                        )
                         continue
                     origin = section.get("from") or {}
                     if not isinstance(origin, dict):
+                        _LOGGER.debug("G&C: invalid boarding stop for train %s", get_train_num(journey))
                         continue
                     identifiers = [
                         origin.get("id"),
@@ -433,6 +439,10 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
                         (origin.get("stop_area") or {}).get("id")
                         if isinstance(origin.get("stop_area"), dict) else None,
                     ]
+                    _LOGGER.debug(
+                        "G&C: train %s boarding stop IDs=%s, keys=%s",
+                        get_train_num(journey), identifiers, list(origin),
+                    )
                     station_uic = ""
                     for identifier in identifiers:
                         if not isinstance(identifier, str):
@@ -453,6 +463,10 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
                             "G&C: no UIC in boarding stop for train %s; origin=%s",
                             get_train_num(journey), origin.get("id"),
                         )
+                _LOGGER.debug(
+                    "G&C: resolved %d boarding stations from %d journeys",
+                    len(by_station), len(filtered_journeys),
+                )
                 for station_uic, station_journeys in by_station.items():
                     try:
                         await self._enrich_journeys(station_journeys, station_uic)
