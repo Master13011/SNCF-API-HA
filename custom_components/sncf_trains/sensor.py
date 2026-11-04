@@ -337,7 +337,7 @@ class SncfTrainSensor(
             "train_length": journey.get("train_length"),
             "train_family": journey.get("train_family"),
             "train_type": journey.get("train_type"),
-            "train_cars_estimated": journey.get("train_cars_estimated"),
+            "train_cars": journey.get("train_cars"),
         }
 
 
