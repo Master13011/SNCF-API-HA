@@ -260,6 +260,10 @@ class SncfTrainCard extends HTMLElement {
 :host{display:block;min-width:0;max-width:100%;overflow-anchor:none;--accent:var(--primary-color,#4c91ff)}
 *{box-sizing:border-box}
 ha-card{width:100%;max-width:100%;min-width:0;background:var(--ha-card-background,var(--card-background-color));color:var(--primary-text-color);border-radius:20px;overflow:hidden;border:1px solid var(--divider-color);box-shadow:0 8px 24px rgba(0,0,0,.08)}
+.train-details{display:flex;flex-wrap:wrap;gap:5px 12px;padding:0 12px 11px;font-size:.78rem;color:var(--secondary-text-color)}
+.train-detail{display:inline-flex;align-items:center;gap:4px;min-width:0}
+.train-detail ha-icon{--mdc-icon-size:15px;flex-shrink:0}
+.train-type{overflow-wrap:anywhere}
 header{display:flex;align-items:center;gap:10px;padding:17px 16px 12px;font-weight:750;font-size:1.1rem}
 header ha-icon{color:var(--accent)}
 .panel,.trains{overflow-anchor:none;min-width:0;max-width:100%}
