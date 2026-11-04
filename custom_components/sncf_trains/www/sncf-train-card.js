@@ -25,7 +25,7 @@ class SncfTrainCard extends HTMLElement {
       title:'Trains SNCF',train_lines:10,visible_trains:3,direction_titles:'',animation_duration:30,update_interval:30,
       train_emoji:'mdi:train',train_emoji_axial_symmetry:false,
       show_track:true,show_duration:true,show_status:true,show_countdown:true,
-      show_platform:true,show_train_units:true,show_train_type:true,
+      show_platform:true,show_arrival_platform:true,show_train_units:true,show_train_type:true,
       ...config,device_id:ids
     };
     // Compatibilité : anciennes configurations exprimées en millisecondes.
@@ -52,7 +52,7 @@ class SncfTrainCard extends HTMLElement {
         {name:'animation_duration',selector:{number:{min:0,max:100,step:1}}},
         {name:'update_interval',selector:{number:{min:5,max:3600,step:1}}},
         bool('show_countdown'),bool('show_track'),bool('show_duration'),bool('show_status'),
-        bool('show_platform'),bool('show_train_units'),bool('show_train_type'),
+        bool('show_platform'),bool('show_arrival_platform'),bool('show_train_units'),bool('show_train_type'),
         {name:'train_emoji',selector:{icon:{}}},
         bool('train_emoji_axial_symmetry')
       ],
@@ -61,14 +61,14 @@ class SncfTrainCard extends HTMLElement {
         animation_duration:'Afficher le train avant départ (minutes)',
         update_interval:'Actualisation (secondes)',
         show_countdown:'Compte à rebours avant le départ',show_track:'Afficher le rail',show_duration:'Afficher la durée',
-        show_status:'Afficher le statut',show_platform:'Afficher la voie de départ',
+        show_status:'Afficher le statut',show_platform:'Afficher la voie de départ',show_arrival_platform:'Afficher la voie d’arrivée',
         show_train_units:'Afficher le nombre de rames',show_train_type:'Afficher le matériel roulant',
         train_emoji:'Icône du train',
         train_emoji_axial_symmetry:'Inverser horizontalement le train'
       })[s.name]
     };
   }
-  static getStubConfig(){return {device_id:[],title:'Trains SNCF',train_lines:5,visible_trains:3,show_track:true,show_duration:true,show_status:true,show_countdown:true,show_platform:true,show_train_units:true,show_train_type:true};}
+  static getStubConfig(){return {device_id:[],title:'Trains SNCF',train_lines:5,visible_trains:3,show_track:true,show_duration:true,show_status:true,show_countdown:true,show_platform:true,show_arrival_platform:true,show_train_units:true,show_train_type:true};}
   set hass(value){this._hass=value;this.render();}
   connectedCallback(){this._startTimer();}
   disconnectedCallback(){this._stopTimer();this._renderId++;}
@@ -131,6 +131,9 @@ class SncfTrainCard extends HTMLElement {
     const durationLabel=Number.isFinite(duration)&&duration>0?`${Math.round(duration)} min`:'';
     const platform=String(a.platform||'').trim();
     const showPlatform=this.config.show_platform&&platform&&!['N/A','UNKNOWN','UNAVAILABLE','NONE'].includes(platform.toUpperCase());
+    const arrivalPlatform=String(a.arrival_platform||'').trim();
+    const showArrivalPlatform=this.config.show_arrival_platform&&arrivalPlatform&&!['N/A','UNKNOWN','UNAVAILABLE','NONE'].includes(arrivalPlatform.toUpperCase());
+    const arrivalInfo=showArrivalPlatform?`<div class="train-details arrival-details"><span class="train-detail platform-inline"><ha-icon icon="mdi:sign-direction"></ha-icon>Voie <strong>${this._escape(arrivalPlatform)}</strong></span></div>`:'';
     const units=Number(a.train_units);
     const showUnits=this.config.show_train_units&&Number.isInteger(units)&&units>0;
     const trainType=String(a.train_type||'').trim();
@@ -152,7 +155,7 @@ class SncfTrainCard extends HTMLElement {
           </div>`:'<ha-icon icon="mdi:arrow-right"></ha-icon>'}
         </div>
         <div class="station arrive"><span class="station-caption">Arrivée</span>
-          <div class="times">${time(baseArr,realArr)}</div></div>
+          <div class="times">${time(baseArr,realArr)}</div>${arrivalInfo}</div>
       </div>
       <div class="train-footer">
         <div class="train-meta"><span class="ter-pill">TER</span>
@@ -235,7 +238,7 @@ class SncfTrainCard extends HTMLElement {
         t.entity_id,t.attributes.departure_time,t.attributes.arrival_time,
         t.attributes.base_departure_time,t.attributes.base_arrival_time,
         t.attributes.delay_minutes,t.attributes.has_delay,
-        t.attributes.platform,t.attributes.train_units,t.attributes.train_type
+        t.attributes.platform,t.attributes.arrival_platform,t.attributes.train_units,t.attributes.train_type
       ])]));
       // Avoid replacing the DOM on every Home Assistant state update.
       // This prevents focus/scroll jumps on iOS.
@@ -260,7 +263,7 @@ class SncfTrainCard extends HTMLElement {
 *{box-sizing:border-box}
 ha-card{width:100%;max-width:100%;min-width:0;background:var(--ha-card-background,var(--card-background-color));color:var(--primary-text-color);border-radius:20px;overflow:hidden;border:1px solid var(--divider-color);box-shadow:0 8px 24px rgba(0,0,0,.08)}
 .train-details{display:flex;flex-wrap:wrap;gap:4px 10px;margin-top:6px;font-size:.72rem;color:var(--secondary-text-color);max-width:min(65vw,330px)}
-.train-detail{display:inline-flex;align-items:center;gap:4px;min-width:0}
+.arrival-details{justify-content:flex-end;margin-left:auto}\n.train-detail{display:inline-flex;align-items:center;gap:4px;min-width:0}
 .train-detail ha-icon{--mdc-icon-size:15px;flex-shrink:0}
 .platform-inline{font-weight:650;color:var(--primary-text-color)}
 .platform-inline strong{font-size:.95rem;font-weight:850;color:var(--primary-color,#03a9f4)}
