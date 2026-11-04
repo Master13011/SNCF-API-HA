@@ -108,13 +108,14 @@ Obtenez votre clé ici : https://numerique.sncf.com/startup/api/ -> Site HS
 - Retard estimé
 - Durée totale (`duration_minutes`)
 - Mode, direction, numéro
-- Plateforme
+- Voie de départ (`platform`) et d'arrivée (`arrival_platform`) lorsqu'elles sont disponibles
+- Nombre de rames (`train_units`), composition et type de matériel lorsqu'ils sont connus
 
 ---
 
 ## 🎨 Carte Lovelace — SNCF Train Card
 
-La carte `sncf-train-card` est **automatiquement disponible** dans le sélecteur de cartes dès l'installation de l'intégration.
+La carte `sncf-train-card` est fournie dans le dossier `www` de l'intégration. Si elle n'apparaît pas dans le sélecteur de cartes, vérifier que la ressource Lovelace est déclarée en tant que **Module JavaScript** : `/sncf_trains/sncf-train-card.js`. Après une mise à jour, actualiser le cache du navigateur (au besoin en ajoutant un paramètre `?v=...` à l'URL de la ressource).
 
 ### Ajouter la carte
 
