@@ -405,17 +405,58 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
                 len(filtered_journeys),
             )
 
-            # Gares & Connexions: timetable plus optional circulation details.
-            # Keep SNCF/Navitia journeys usable when this unofficial API fails.
-            station_match = re.search(r"(?<![0-9])([0-9]{8,10})(?![0-9])", departure)
-            station_uic = station_match.group(1) if station_match else ""
-            if station_uic.isdigit() and filtered_journeys:
-                try:
-                    await self._enrich_journeys(
-                        filtered_journeys, station_uic.zfill(10)
+            # Resolve the actual boarding station from Navitia public_transport
+            # sections, not from the configured origin (which may be admin:fr).
+            if filtered_journeys:
+                by_station: dict[str, list[dict]] = {}
+                for journey in filtered_journeys:
+                    sections = journey.get("sections") or []
+                    section = next(
+                        (item for item in sections
+                         if isinstance(item, dict)
+                         and item.get("type") == "public_transport"),
+                        None,
                     )
-                except Exception as err:
-                    _LOGGER.debug("Gares & Connexions enrichment failed: %s", err)
+                    if not section:
+                        continue
+                    origin = section.get("from") or {}
+                    if not isinstance(origin, dict):
+                        continue
+                    identifiers = [
+                        origin.get("id"),
+                        (origin.get("stop_point") or {}).get("id")
+                        if isinstance(origin.get("stop_point"), dict) else None,
+                        (origin.get("stop_area") or {}).get("id")
+                        if isinstance(origin.get("stop_area"), dict) else None,
+                    ]
+                    station_uic = ""
+                    for identifier in identifiers:
+                        if not isinstance(identifier, str):
+                            continue
+                        # SNCF stop IDs contain an 8-digit UIC, unlike
+                        # administrative IDs such as admin:fr:69123.
+                        match = re.search(
+                            r"(?<![0-9])([0-9]{8}|00[0-9]{8})(?![0-9])",
+                            identifier,
+                        )
+                        if match:
+                            station_uic = match.group(1).zfill(10)
+                            break
+                    if station_uic:
+                        by_station.setdefault(station_uic, []).append(journey)
+                    else:
+                        _LOGGER.debug(
+                            "G&C: no UIC in boarding stop for train %s; origin=%s",
+                            get_train_num(journey), origin.get("id"),
+                        )
+                for station_uic, station_journeys in by_station.items():
+                    try:
+                        await self._enrich_journeys(station_journeys, station_uic)
+                    except Exception as err:
+                        _LOGGER.debug(
+                            "G&C enrichment failed for station %s: %s",
+                            station_uic, err,
+                        )
 
             trains[subentry_id] = filtered_journeys
 
