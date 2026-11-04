@@ -161,7 +161,6 @@ class SncfTrainCard extends HTMLElement {
         </div>
         ${this.config.show_status?`<span class="status"><span class="dot"></span>${label}</span>`:''}
       </div>
-      ${trainInfo?`<div class="train-details">${trainInfo}</div>`:'' }
     </article>`;
   }
   _countdown(dep,now=Date.now()){
@@ -263,8 +262,8 @@ ha-card{width:100%;max-width:100%;min-width:0;background:var(--ha-card-backgroun
 .train-details{display:flex;flex-wrap:wrap;gap:4px 10px;margin-top:6px;font-size:.72rem;color:var(--secondary-text-color);max-width:min(65vw,330px)}
 .train-detail{display:inline-flex;align-items:center;gap:4px;min-width:0}
 .train-detail ha-icon{--mdc-icon-size:15px;flex-shrink:0}
-.platform-badge{padding:4px 9px;border-radius:8px;background:color-mix(in srgb,var(--primary-color,#03a9f4) 14%,var(--card-background-color,#fff));border:1px solid color-mix(in srgb,var(--primary-color,#03a9f4) 40%,transparent);color:var(--primary-text-color);font-weight:650}
-.platform-badge strong{font-size:1rem;font-weight:850;color:var(--primary-color,#03a9f4);line-height:1}
+.platform-inline{font-weight:650;color:var(--primary-text-color)}
+.platform-inline strong{font-size:.95rem;font-weight:850;color:var(--primary-color,#03a9f4)}
 .train-type{overflow-wrap:anywhere}
 header{display:flex;align-items:center;gap:10px;padding:17px 16px 12px;font-weight:750;font-size:1.1rem}
 header ha-icon{color:var(--accent)}
