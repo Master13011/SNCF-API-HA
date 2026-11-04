@@ -60,7 +60,7 @@ MATERIELS_ROULANTS: dict[str, tuple[str, str, int | None]] = {
 def identifier_materiel(reference: str) -> dict[str, Any] | None:
     """Identifie une rame à partir d'une référence telle que 0KSRA-Z24595."""
     raw = str(reference).upper().replace(" ", "")
-    match = re.search(r"([ZBXU])(\\d{5})([ML])?(?!\\w)", raw)
+    match = re.search(r"([ZBXU])([0-9]{5})([ML])?(?![A-Z0-9])", raw)
     if not match:
         return None
     prefix, number, suffix = match.groups()
