@@ -32,9 +32,17 @@ jobs:
       - name: Package Home Assistant integration
         run: |
           test -f custom_components/sncf_trains/manifest.json
-          cd custom_components
-          zip -r "$GITHUB_WORKSPACE/sncf_trains_ha.zip" sncf_trains \
+          cd custom_components/sncf_trains
+          zip -r "$GITHUB_WORKSPACE/sncf_trains_ha.zip" . \
             -x '*/__pycache__/*' '*.pyc' '*/.DS_Store'
+
+      - name: Verify archive layout
+        run: |
+          unzip -l sncf_trains_ha.zip | grep -Eq "[[:space:]]manifest\\.json$"
+          if unzip -Z1 sncf_trains_ha.zip | grep -q "^sncf_trains/"; then
+            echo "Unexpected nested sncf_trains directory in ZIP" >&2
+            exit 1
+          fi
 
       - name: Attach ZIP to GitHub release
         env:
