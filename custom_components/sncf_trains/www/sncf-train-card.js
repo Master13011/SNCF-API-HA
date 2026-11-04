@@ -41,7 +41,7 @@ class SncfTrainCard extends HTMLElement {
     this.render();
   }
   static getConfigForm() {
-    const bool=n=>({name:n,selector:{boolean:{}}});
+    const bool=n=>({name:n,default:true,selector:{boolean:{}}});
     return {
       schema:[
         {name:'device_id',required:true,selector:{device:{multiple:true,filter:{integration:'sncf_trains'}}}},
@@ -68,7 +68,7 @@ class SncfTrainCard extends HTMLElement {
       })[s.name]
     };
   }
-  static getStubConfig(){return {device_id:[],title:'Trains SNCF',train_lines:5,show_track:true};}
+  static getStubConfig(){return {device_id:[],title:'Trains SNCF',train_lines:5,visible_trains:3,show_track:true,show_duration:true,show_status:true,show_countdown:true,show_platform:true,show_train_units:true,show_train_type:true};}
   set hass(value){this._hass=value;this.render();}
   connectedCallback(){this._startTimer();}
   disconnectedCallback(){this._stopTimer();this._renderId++;}
@@ -136,7 +136,7 @@ class SncfTrainCard extends HTMLElement {
     const trainType=String(a.train_type||'').trim();
     const showType=this.config.show_train_type&&trainType;
     const trainInfo=[
-      showPlatform?`<span class="train-detail"><ha-icon icon="mdi:sign-direction"></ha-icon>Voie ${this._escape(platform)}</span>`:'',
+      showPlatform?`<span class="train-detail platform-badge"><ha-icon icon="mdi:sign-direction"></ha-icon><span>Voie <strong>${this._escape(platform)}</strong></span></span>`:'',
       showUnits?`<span class="train-detail"><ha-icon icon="mdi:train-variant"></ha-icon>${units} ${units===1?'rame':'rames'}</span>`:'',
       showType?`<span class="train-detail train-type">${this._escape(trainType)}</span>`:''
     ].filter(Boolean).join('');
@@ -263,6 +263,8 @@ ha-card{width:100%;max-width:100%;min-width:0;background:var(--ha-card-backgroun
 .train-details{display:flex;flex-wrap:wrap;gap:5px 12px;padding:0 12px 11px;font-size:.78rem;color:var(--secondary-text-color)}
 .train-detail{display:inline-flex;align-items:center;gap:4px;min-width:0}
 .train-detail ha-icon{--mdc-icon-size:15px;flex-shrink:0}
+.platform-badge{padding:4px 9px;border-radius:8px;background:color-mix(in srgb,var(--primary-color,#03a9f4) 14%,var(--card-background-color,#fff));border:1px solid color-mix(in srgb,var(--primary-color,#03a9f4) 40%,transparent);color:var(--primary-text-color);font-weight:650}
+.platform-badge strong{font-size:1rem;font-weight:850;color:var(--primary-color,#03a9f4);line-height:1}
 .train-type{overflow-wrap:anywhere}
 header{display:flex;align-items:center;gap:10px;padding:17px 16px 12px;font-weight:750;font-size:1.1rem}
 header ha-icon{color:var(--accent)}
