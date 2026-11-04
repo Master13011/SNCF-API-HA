@@ -179,15 +179,17 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
         )
         stop = next(
             (s for s in (item.get("JourneyStop") or [])
-             if isinstance(s, dict) and s.get("uic") == station_uic),
+             if isinstance(s, dict) and str(s.get("uic", "")).zfill(10) == station_uic),
             None,
         )
         gc_time = (stop or item).get("scheduledTime")
         try:
             nav_time = parse_datetime(scheduled)
             gc_dt = datetime.fromisoformat(gc_time.replace("Z", "+00:00"))
-            if nav_time is None or gc_dt.tzinfo is None:
+            if nav_time is None:
                 return False
+            if gc_dt.tzinfo is None:
+                gc_dt = gc_dt.replace(tzinfo=dt_util.DEFAULT_TIME_ZONE)
             return abs((nav_time - gc_dt).total_seconds()) <= 20 * 60
         except (TypeError, ValueError, AttributeError):
             return False
@@ -404,7 +406,8 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
 
             # Gares & Connexions: timetable plus optional circulation details.
             # Keep SNCF/Navitia journeys usable when this unofficial API fails.
-            station_uic = departure.split(":")[-1]
+            station_match = re.search(r"(?<![0-9])([0-9]{8,10})(?![0-9])", departure)
+            station_uic = station_match.group(1) if station_match else ""
             if station_uic.isdigit() and filtered_journeys:
                 try:
                     await self._enrich_journeys(
