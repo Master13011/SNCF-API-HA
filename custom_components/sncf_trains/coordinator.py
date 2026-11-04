@@ -226,6 +226,11 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
             for item in candidates:
                 circulation_id = item.get("circulationId")
                 if not isinstance(circulation_id, str) or not circulation_id:
+                    if self._matching_departure(journey, item, station_uic):
+                        platform = item.get("platform") or {}
+                        if isinstance(platform, dict) and platform.get("track"):
+                            journey["platform_track"] = str(platform["track"])
+                        break
                     continue
                 key = (station_uic, circulation_id)
                 if key not in details_cache:
@@ -291,7 +296,7 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
                         ):
                             journey["train_family"] = "Z 24500"
                             journey["train_type"] = "TER 2N NG"
-                            journey["train_cars_estimated"] = 3 * len(units)
+                            journey["train_cars"] = 3 * len(units)
 
                     journey["train_length"] = detail.get("trainLength")
                 break
