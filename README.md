@@ -1,14 +1,17 @@
 # 🚄 Intégration SNCF Trains pour Home Assistant
 
-![Home Assistant](https://img.shields.io/badge/Home--Assistant-2024.5+-blue?logo=home-assistant)
+![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2025.8.2%2B-blue?logo=home-assistant)
 ![Custom Component](https://img.shields.io/badge/Custom%20Component-oui-orange)
-![Licence MIT](https://img.shields.io/badge/Licence-MIT-green)
+![Licence](https://img.shields.io/badge/Licence-AGPL--3.0-green)
 
 Suivez les horaires des trains SNCF entre deux gares dans Home Assistant, grâce à l’API officielle [SNCF](https://www.digital.sncf.com/startup/api).
 Départ / arrivée, retards, durée, mode (TER…), tout est intégré dans une interface configurable et traduite.
-Les numéros de voie sont récupérés via l'API Gares & Connexions lorsque l'information est disponible.
+Les numéros de voie sont récupérés, quand c'est possible, auprès de Gares & Connexions.
 
-> ⚠️ Ne prend pas en compte les trains supprimés.
+> ⚠️ **Limites connues**
+> - Seuls les trajets **sans correspondance** sont conservés.
+> - Les trains supprimés ne sont pas pris en compte.
+> - Les numéros de voie reposent sur un point d'accès non officiel de Gares & Connexions : ils sont fournis « au mieux » et peuvent être absents (`N/A`).
 
 ---
 
@@ -63,7 +66,7 @@ Plusieurs trajets peuvent être configurés séparément.
 
 ## 🔐 Clé API SNCF
 
-Obtenez votre clé ici : https://numerique.sncf.com/startup/api/
+Obtenez votre clé ici : https://numerique.sncf.com/startup/api/ -> Site HS
 
 1. Créez un compte ou connectez-vous
 2. Générez une clé API gratuite
@@ -82,7 +85,7 @@ Obtenez votre clé ici : https://numerique.sncf.com/startup/api/
 | `train_count` | Nombre de trains à afficher |
 | `time_start` / `time_end` | Plage horaire de surveillance (ex. : `06:00` → `09:00`) |
 
-> 🕑 L'intervalle actif s'active automatiquement **2h avant** le début de plage.
+> 🕑 L'intervalle actif s'active automatiquement **1h avant** le début de plage.
 
 ---
 
@@ -143,8 +146,6 @@ title: 'Tous Mes Trajets'
 train_lines: 10
 ```
 
-> **Rétrocompatibilité** : L'ancien format (`device_id: DEVICE_ID`) continue de fonctionner et est automatiquement converti en tableau.
-
 ### 🔍 Trouver le `device_id`
 
 _S'obtient dynamiquement via la configuration visuelle._
@@ -161,53 +162,28 @@ Le `device_id` correspond à l'appareil créé lors de la configuration du traje
 
 | Paramètre | Type | Défaut | Description |
 |-----------|------|--------|-------------|
-| `device_id` | `string` \| `array[string]` | **obligatoire** | Identifiant(s) de l'appareil(s) SNCF. Peut être une chaîne unique ou un tableau de plusieurs IDs (voir ci-dessus) |
-| `title` | `string` | `'Trains SNCF'` | Titre affiché en haut de la carte |
-| `train_lines` | `number` | `3` | Nombre de trains affichés simultanément |
-| `animation_duration` | `number` | `30` | Nombre de minutes avant l'arrivée en gare à partir duquel l'animation du train se déclenche (ex : `30` = animation active dans les 30 dernières minutes, `60` = dans la dernière heure) |
-| `update_interval` | `number` | `30000` | Intervalle de rafraîchissement de la carte en **millisecondes** |
-| `train_emoji_axial_symmetry` | `boolean` | `true` | Retourne l'emoji du train horizontalement |
-| `train_emoji` | `string` | `'🚅'` | Emoji du train animé sur la barre |
-| `show_departure_station` | `boolean` | `true` | Affiche ou masque les informations de départ |
-| `departure_station_emoji` | `string` | `''` | Emoji de la station de départ |
-| `show_arrival_station` | `boolean` | `true` | Affiche ou masque les informations d'arrivée |
-| `arrival_station_emoji` | `string` | `'🚉'` | Emoji de la station d'arrivée |
+| `device_id` | `string` ou `list` | requis | Appareil(s) SNCF à afficher
+| `title` | `string` | `Trains SNCF` | Titre de la carte
+| `visible_trains` | `number` | 	`3` | Trains affichés avant le bouton « Voir plus »
+| `train_lines` | `number` | 	`10` | Nombre maximum de trains par sens
+| `direction_titles` | `string` | (vide) | Titres des sens, séparés par `|` (sinon, la direction du premier train)
+| `update_interval` | `number` | `30` | Rafraîchissement de l'affichage, en secondes (minimum 5). Les anciennes valeurs en millisecondes (≥ 5000) sont converties automatiquement
+| `show_countdown` | `boolean` | `true` | Compte à rebours avant le départ
+| `show_track` | `boolean` | `true` | Barre de progression du train
+| `show_duration` | `boolean` | `true` | Durée du trajet
+| `show_status` | `boolean` | `true` | Statut (à l'heure, retard, en circulation, arrivé)
+| `train_emoji` | `string` | `mdi:train` | Icône `mdi:` ou emoji affiché sur la barre
 
-### Exemples
+### Prérequis et limites de la carte
 
-**Single device :**
-```yaml
-type: custom:sncf-train-card
-device_id: abc123def456
-title: "Paris → Lyon"
-train_lines: 4
-train_emoji: "🚆"
-train_emoji_axial_symmetry: true
-show_departure_station: true
-departure_station_emoji: "🚉"
-show_arrival_station: true
-arrival_station_emoji: "🏙️"
-animation_duration: 0
-update_interval: 60000
-```
-
-**Multiple devices (fusionnés et triés par date d'arrivée) :**
-```yaml
-type: custom:sncf-train-card
-device_id:
-  - abc123def456
-  - def456ghi789
-  - ghi789jkl123
-title: "Tous Mes Trajets SNCF"
-train_lines: 10
-train_emoji: "🚄"
-update_interval: 30000
-```
+- Elle lit le registre des entités : elle ne fonctionne que pour les utilisateurs administrateurs.
+- Elle ne retient que les capteurs de l'appareil dont l'`entity_id` contient `train` : ne renommez pas les capteurs « Train N » en supprimant ce mot.
+- Les trains arrivés depuis plus de 30 minutes sont masqués.
+- Le libellé « TER » est affiché pour tous les trains.
 
 ### Exemple d'affichage
 
-![Exemple d'affichage](./assets/card_example.png)
-![Exemple d'affichage](./assets/card_example.png)
+<img width="375" height="580" alt="image" src="https://github.com/user-attachments/assets/2ee6865d-4f6d-48a1-ae2c-fb44022c72b4" />
 
 ---
 
@@ -232,15 +208,20 @@ update_interval: 30000
 Compatible avec Home Assistant `2025.8+`.
 
 Structure :
-- `__init__.py` : enregistrement de l'intégration et de la carte Lovelace
-- `calendar.py` : calendrier
-- `config_flow.py` : assistant UI de configuration
-- `options_flow.py` : formulaire d’options dynamiques
-- `sensor.py` : entités de capteurs
-- `coordinator.py` : logique de récupération intelligente
-- `translations/fr.json` : interface en français
-- `manifest.json` : métadonnées et dépendances
-- `www/sncf-train-card.js` : carte Lovelace personnalisée
+
+custom_components/sncf_trains/
+-  __init__.py        # Mise en place, migration, enregistrement de la carte
+-  api.py             # Client API SNCF (journeys, stations)
+-  calendar.py        # Entité calendrier
+-  config_flow.py     # Configuration, options, sous-entrées (trajets)
+-  const.py           # Constantes
+-  coordinator.py     # Récupération des données, intervalle adaptatif
+-  diagnostics.py     # Diagnostics
+-  helpers.py         # Dates, numéro de train, durée
+-  sensor.py          # Capteurs
+-  strings.json / translations/fr.json
+-  www/sncf-train-card.js   # Carte Lovelace
+-  tests/             # Tests pytest
 
 ---
 
@@ -252,5 +233,4 @@ Contributions bienvenues via **Pull Request** ou **Issues**
 ---
 
 ## 📄 Licence
-
-Code open-source sous licence **MIT**
+Distribué sous licence GNU AGPL v3 
