@@ -90,6 +90,8 @@ TGV_EXPLICITES: dict[str, tuple[str, int | None]] = {
 def identifier_materiel(reference: str) -> dict[str, Any] | None:
     """Reconnaît une rame sans déduire abusivement sa version."""
     raw = str(reference).upper().strip()
+    # API references can contain an operator prefix, e.g. 0KSRA-Z24595.
+    raw = raw.rsplit("-", 1)[-1]
     for prefix, (nom, caisses) in TGV_EXPLICITES.items():
         if raw.startswith(prefix):
             return {
@@ -143,8 +145,14 @@ def analyser_composition(elements: list) -> dict[str, Any]:
         if complet and all(m["voitures"] is not None for m in materiels)
         else None
     )
+    # A locomotive or isolated carriage is not an independently counted trainset.
+    trainsets = (
+        len(elements)
+        if complet and all(m["famille"] != "Locomotive" for m in materiels)
+        else None
+    )
     return {
-        "train_units": len(elements),
+        "train_units": trainsets,
         "train_composition": rames,
         "train_family": next(iter(familles)) if complet and len(familles) == 1 else None,
         "train_type": next(iter(types)) if complet and len(types) == 1 else None,
