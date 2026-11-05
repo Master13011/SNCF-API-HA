@@ -69,7 +69,11 @@ class SncfTrainCard extends HTMLElement {
     };
   }
   static getStubConfig(){return {device_id:[],title:'Trains SNCF',train_lines:5,visible_trains:3,show_track:true,show_duration:true,show_status:true,show_countdown:true,show_platform:true,show_arrival_platform:true,show_train_units:true,show_train_type:true};}
-  set hass(value){this._hass=value;this.render();}
+  set hass(value){
+    this._hass=value;
+    this.style.setProperty('--sncf-warning-color',value.themes?.darkMode === true ? 'var(--warning-color,#f59e0b)' : '#a65b00');
+    this.render();
+  }
   connectedCallback(){this._startTimer();}
   disconnectedCallback(){this._stopTimer();this._renderId++;}
   getCardSize(){return Math.max(2,Math.ceil(((this.config?.train_lines||3)+1)/2));}
@@ -306,13 +310,13 @@ nav{display:flex;align-items:center;gap:7px;margin:2px 12px 0;padding:8px 5px;bo
 .countdown[hidden]{display:none}
 .status{display:inline-flex;align-items:center;gap:6px;padding:6px 9px;border-radius:9px;background:color-mix(in srgb,var(--success-color,#43a047) 12%,transparent);color:var(--success-color,#43a047);font-size:.72rem;font-weight:750;white-space:nowrap}
 .dot{height:7px;width:7px;border-radius:50%;background:currentColor}
-.late.moderate .actual,.late.moderate .status{color:var(--warning-color,#f59e0b)}
+.late.moderate .actual,.late.moderate .status{color:var(--sncf-warning-color,var(--warning-color,#f59e0b))}
 .late.severe .actual,.late.severe .status{color:var(--error-color,#e53935)}
-.late.moderate .status{background:color-mix(in srgb,var(--warning-color,#f59e0b) 12%,transparent)}
+.late.moderate .status{background:color-mix(in srgb,var(--sncf-warning-color,var(--warning-color,#f59e0b)) 12%,transparent)}
 .late.severe .status{background:color-mix(in srgb,var(--error-color,#e53935) 12%,transparent)}
-.late.moderate .track-fill{background:var(--warning-color,#f59e0b)}
+.late.moderate .track-fill{background:var(--sncf-warning-color,var(--warning-color,#f59e0b))}
 .late.severe .track-fill{background:var(--error-color,#e53935)}
-.late.moderate .moving-train{color:var(--warning-color,#f59e0b)}
+.late.moderate .moving-train{color:var(--sncf-warning-color,var(--warning-color,#f59e0b))}
 .late.severe .moving-train{color:var(--error-color,#e53935)}
 .running .status{color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent)}
 .arrived .status{color:var(--secondary-text-color);background:var(--secondary-background-color)}
