@@ -71,7 +71,7 @@ class SncfTrainCard extends HTMLElement {
   static getStubConfig(){return {device_id:[],title:'Trains SNCF',train_lines:5,visible_trains:3,show_track:true,show_duration:true,show_status:true,show_countdown:true,show_platform:true,show_arrival_platform:true,show_train_units:true,show_train_type:true};}
   set hass(value){
     this._hass=value;
-    this.style.setProperty('--sncf-warning-color',value.themes?.darkMode?'var(--warning-color,#f59e0b)':'#a65b00');
+    this.style.setProperty('--sncf-warning-color',value.themes?.darkMode === true ? 'var(--warning-color,#f59e0b)' : '#a65b00');
     this.render();
   }
   connectedCallback(){this._startTimer();}
