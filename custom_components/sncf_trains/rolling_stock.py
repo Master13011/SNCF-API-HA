@@ -135,11 +135,13 @@ def analyser_composition(elements: list) -> dict[str, Any]:
         and isinstance(element.get("numeroAffectation"), str)
         and element["numeroAffectation"]
     ]
-    materiels = [identifier_materiel(rame) for rame in rames]
+    # The feed may repeat one physical trainset once per element: count it once.
+    rames_uniques = list(dict.fromkeys(rames))
+    materiels = [identifier_materiel(rame) for rame in rames_uniques]
     connus = [m for m in materiels if m is not None]
     familles = {m["famille"] for m in connus}
     types = {m["type"] for m in connus}
-    complet = len(rames) == len(elements) and len(connus) == len(elements)
+    complet = len(rames) == len(elements) and len(connus) == len(materiels)
     voitures = (
         sum(m["voitures"] for m in materiels)
         if complet and all(m["voitures"] is not None for m in materiels)
@@ -147,7 +149,7 @@ def analyser_composition(elements: list) -> dict[str, Any]:
     )
     # A locomotive or isolated carriage is not an independently counted trainset.
     trainsets = (
-        len(elements)
+        len(materiels)
         if complet and all(m["famille"] != "Locomotive" for m in materiels)
         else None
     )
@@ -158,4 +160,4 @@ def analyser_composition(elements: list) -> dict[str, Any]:
         "train_type": next(iter(types)) if complet and len(types) == 1 else None,
         "train_cars": voitures,
         "train_cars_source": "catalogue" if voitures is not None else "inconnue",
-    }
+    }
