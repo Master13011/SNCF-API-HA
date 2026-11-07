@@ -5,6 +5,8 @@ from typing import List, Optional, Mapping
 from homeassistant.exceptions import ConfigEntryAuthFailed
 import asyncio
 
+from .helpers import attach_disruptions
+
 API_BASE = "https://api.sncf.com"
 _LOGGER = logging.getLogger(__name__)
 
@@ -91,7 +93,9 @@ class SncfApiClient:
                     raise RuntimeError("Quota exceeded: 429 Too Many Requests.")
                 resp.raise_for_status()
                 data = await resp.json()
-                return data.get("journeys", [])
+                journeys = data.get("journeys", [])
+                attach_disruptions(journeys, data.get("disruptions", []))
+                return journeys
         except (ClientError, asyncio.TimeoutError) as err:
             _LOGGER.warning("Network error fetching journeys from SNCF API: %s", err)
             return None

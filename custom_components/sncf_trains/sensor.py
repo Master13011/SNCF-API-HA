@@ -18,7 +18,13 @@ from .const import (
     DOMAIN,
 )
 from .coordinator import SncfUpdateCoordinator
-from .helpers import format_time, get_duration, get_train_num, parse_datetime
+from .helpers import (
+    disruption_summary,
+    format_time,
+    get_duration,
+    get_train_num,
+    parse_datetime,
+)
 
 
 async def async_setup_entry(
@@ -338,6 +344,8 @@ class SncfTrainSensor(
             "train_type": journey.get("train_type"),
             "train_cars": journey.get("train_cars"),
             "train_cars_source": journey.get("train_cars_source", "inconnue"),
+            "journey_status": journey.get("status") or None,
+            **disruption_summary(journey),
         }
 
 

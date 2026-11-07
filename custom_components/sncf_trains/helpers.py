@@ -116,3 +116,58 @@ def get_duration(journey: dict[str, Any]) -> int:
         return int((arr - dep).total_seconds() / 60)
 
     return 0
+
+
+def attach_disruptions(journeys: list, disruptions: list) -> None:
+    """Link the response-level disruptions to the journeys they affect."""
+    by_id = {}
+    for disruption in disruptions:
+        if not isinstance(disruption, dict):
+            continue
+        for key in ("id", "disruption_id", "impact_id"):
+            if disruption.get(key):
+                by_id[disruption[key]] = disruption
+
+    for journey in journeys:
+        if not isinstance(journey, dict):
+            continue
+        found = []
+        for section in journey.get("sections") or []:
+            if not isinstance(section, dict):
+                continue
+            display = section.get("display_informations")
+            links = list(section.get("links") or [])
+            if isinstance(display, dict):
+                links += display.get("links") or []
+            for link in links:
+                if not isinstance(link, dict) or link.get("type") != "disruption":
+                    continue
+                disruption = by_id.get(link.get("id"))
+                if disruption is not None and disruption not in found:
+                    found.append(disruption)
+        journey["disruptions"] = found
+
+
+def disruption_summary(journey: dict) -> dict:
+    """Return the cause, effect and message of a journey's main disruption."""
+    summary = {"disruption_cause": None, "disruption_effect": None,
+               "disruption_message": None}
+    disruptions = journey.get("disruptions") or []
+    if not disruptions:
+        return summary
+    main = disruptions[0]
+    cause = main.get("cause") or None
+    if not cause:
+        for impacted in main.get("impacted_objects") or []:
+            for stop in (impacted.get("impacted_stops") or []):
+                if stop.get("cause"):
+                    cause = stop["cause"]
+                    break
+            if cause:
+                break
+    severity = main.get("severity") or {}
+    messages = main.get("messages") or []
+    summary["disruption_cause"] = cause
+    summary["disruption_effect"] = severity.get("effect")
+    summary["disruption_message"] = messages[0].get("text") if messages else None
+    return summary
