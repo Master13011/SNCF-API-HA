@@ -15,6 +15,7 @@ from .const import (
     CONF_DEPARTURE_NAME,
     CONF_FROM,
     CONF_TO,
+    CONF_TRAIN_COUNT,
     DOMAIN,
 )
 from .coordinator import SncfUpdateCoordinator
@@ -42,12 +43,10 @@ async def async_setup_entry(
     )
 
     for subentry in entry.subentries.values():
-        journeys = coordinator.data.get(subentry.subentry_id, [])
-
-        display_count = min(
-            len(journeys),
-            subentry.data.get("train_count", 0),
-        )
+        # Always create the configured number of train sensors, even if the
+        # API currently returns fewer journeys (for example at night or right
+        # after a restart). Missing journeys are handled at update time.
+        display_count = subentry.data.get(CONF_TRAIN_COUNT, 0)
 
         sensors = []
 
@@ -196,11 +195,6 @@ class SncfTrainSensor(
         self.jid = journey_id
 
         entry = self.coordinator.entry.subentries[train_id]
-        journey = coordinator.data[train_id][journey_id]
-
-        section = get_transport_section(journey)
-
-        departure_time = parse_datetime(section.get("base_departure_date_time", ""))
 
         dep_name = entry.data[CONF_DEPARTURE_NAME]
         arr_name = entry.data[CONF_ARRIVAL_NAME]
@@ -212,8 +206,6 @@ class SncfTrainSensor(
 
         self._attr_unique_id = f"{entry.subentry_id}_{journey_id}"
 
-        self._attr_extra_state_attributes = self._extra_attributes(journey)
-
         self._attr_device_info = {
             "identifiers": {
                 (DOMAIN, entry.subentry_id),
@@ -224,11 +216,16 @@ class SncfTrainSensor(
             "entry_type": DeviceEntryType.SERVICE,
         }
 
-        self._attr_native_value = departure_time
+        self._update_from_journeys()
 
     @callback
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
+        self._update_from_journeys()
+        self.async_write_ha_state()
+
+    def _update_from_journeys(self) -> None:
+        """Compute state and attributes from the coordinator data."""
 
         journeys = self.coordinator.data.get(
             self.tid,
@@ -238,7 +235,6 @@ class SncfTrainSensor(
         if self.jid >= len(journeys):
             self._attr_native_value = None
             self._attr_extra_state_attributes = {}
-            self.async_write_ha_state()
             return
 
         journey = journeys[self.jid]
@@ -253,8 +249,6 @@ class SncfTrainSensor(
         )
 
         self._attr_extra_state_attributes = self._extra_attributes(journey)
-
-        self.async_write_ha_state()
 
     def _extra_attributes(
         self,
