@@ -1,10 +1,12 @@
 """Tests for the SNCF config flow."""
 
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, patch, MagicMock
 
 import pytest
 from homeassistant import config_entries
 from homeassistant.data_entry_flow import FlowResultType
+import asyncio
+from aiohttp import ClientError, ClientSSLError
 
 from custom_components.sncf_trains.const import (
     CONF_API_KEY,
