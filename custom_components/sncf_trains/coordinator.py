@@ -253,7 +253,7 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
                             params={"isDeparture": "true"},
                             headers={"x-environment": "PROD",
                                      "Origin": "https://green-pebble-049918603.7.azurestaticapps.net"},
-                            timeout=8,
+                            timeout=ClientTimeout(total=8),
                         ) as response:
                             if response.status == 200:
                                 payload = await response.json(content_type=None)
