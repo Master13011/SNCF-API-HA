@@ -1,0 +1,98 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Please set SNCF API Key"
+      },
+      "reauth_confirm": {
+        "title": "Reauthenticate SNCF",
+        "description": "The SNCF API key is no longer valid. Enter a new key.",
+        "data": {
+          "api_key": "API Key"
+        }
+      }
+    },
+    "error": {
+      "invalid_api_key": "API Key not found. Please retry."
+    },
+    "abort": {
+      "reconfigure_successful": "Re-configuration was successful",
+      "reauth_successful": "Re-authentication was successful"
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Options",
+        "description": "Set updated and outside intervals",
+        "data": {
+          "update_interval": "Update interval (minutes)",
+          "outside_interval": "Outside interval (minutes)"
+        }
+      }
+    },
+    "error": {
+      "invalid_interval": "Invalid interval (update: 1-120 min, outside: 1-1440 min)."
+    }
+  },
+  "config_subentries": {
+    "train": {
+      "initiate_flow": {
+        "user": "Add journey",
+        "reconfigure": "Reconfigure a journey"
+      },
+      "entry_type": "Train",
+      "step": {
+        "departure_city": {
+          "title": "Select departure city",
+          "data": {
+            "departure_city": "City name"
+          }
+        },
+        "departure_station": {
+          "title": "Select departure station",
+          "data": {
+            "departure_station": "Station name"
+          }
+        },
+        "arrival_city": {
+          "title": "Select arrival city",
+          "data": {
+            "arrival_city": "City name"
+          }
+        },
+        "arrival_station": {
+          "title": "Select arrival station",
+          "data": {
+            "arrival_station": "Station name"
+          }
+        },
+        "time_range": {
+          "title": "Range hours",
+          "data": {
+            "time_start": "Time start",
+            "time_end": "Time end",
+            "train_count": "Trains count"
+          }
+        },
+        "reconfigure": {
+          "title": "Range hours",
+          "data": {
+            "time_start": "Time start",
+            "time_end": "Time end",
+            "train_count": "Trains count"
+          }
+        }
+      },
+      "error": {
+        "no_stations": "No station for this city",
+        "invalid_time": "Invalid time. Use the HH:MM format (e.g. 07:30).",
+        "invalid_train_count": "The number of trains must be between 1 and 10."
+      },
+      "abort": {
+        "already_configured_as_entry": "Already train is configured",
+        "reconfigure_successful": "Re-configuration was successful"
+      }
+    }
+  }
+}
