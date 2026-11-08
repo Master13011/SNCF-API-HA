@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, patch
 import pytest
 from homeassistant import config_entries
 from homeassistant.data_entry_flow import FlowResultType
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.sncf_trains.const import (
     CONF_API_KEY,
@@ -17,6 +18,29 @@ from custom_components.sncf_trains.const import (
     CONF_TRAIN_COUNT,
     DOMAIN,
 )
+
+
+@pytest.fixture(autouse=True)
+def bypass_integration_setup(hass):
+    """Skip the integration setup when a config entry is created.
+
+    The integration depends on the ``frontend`` component, which cannot be
+    loaded in the test environment. These tests only cover the config flow,
+    so the setup itself is not needed.
+    """
+    hass.config.components.add("frontend")
+
+    with (
+        patch(
+            "custom_components.sncf_trains.async_setup",
+            return_value=True,
+        ),
+        patch(
+            "custom_components.sncf_trains.async_setup_entry",
+            return_value=True,
+        ),
+    ):
+        yield
 
 
 @pytest.mark.asyncio
@@ -85,8 +109,12 @@ async def test_config_flow_invalid_api_key(hass):
 
 @pytest.mark.asyncio
 async def test_config_flow_duplicate_entry(hass):
-    """Test that the integration cannot be configured twice."""
-    existing_entry = config_entries.ConfigEntry(
+    """Test that the integration cannot be configured twice.
+
+    The manifest declares ``single_config_entry``, so Home Assistant aborts
+    the flow before the user step is shown.
+    """
+    existing_entry = MockConfigEntry(
         version=1,
         minor_version=2,
         domain=DOMAIN,
@@ -97,31 +125,19 @@ async def test_config_flow_duplicate_entry(hass):
     )
     existing_entry.add_to_hass(hass)
 
-    mock_api = AsyncMock()
-    mock_api.search_stations = AsyncMock(return_value=[{"id": "stop_area:dep"}])
-
-    with patch(
-        "custom_components.sncf_trains.config_flow.SncfApiClient",
-        return_value=mock_api,
-    ):
-        result = await hass.config_entries.flow.async_init(
-            DOMAIN,
-            context={"source": config_entries.SOURCE_USER},
-        )
-
-        result = await hass.config_entries.flow.async_configure(
-            result["flow_id"],
-            user_input={CONF_API_KEY: "new_key"},
-        )
+    result = await hass.config_entries.flow.async_init(
+        DOMAIN,
+        context={"source": config_entries.SOURCE_USER},
+    )
 
     assert result["type"] is FlowResultType.ABORT
-    assert result["reason"] == "already_configured"
+    assert result["reason"] == "single_instance_allowed"
 
 
 @pytest.mark.asyncio
 async def test_train_subentry_happy_path(hass):
     """Test creation of a train subentry."""
-    entry = config_entries.ConfigEntry(
+    entry = MockConfigEntry(
         version=1,
         minor_version=2,
         domain=DOMAIN,
@@ -154,7 +170,7 @@ async def test_train_subentry_happy_path(hass):
         "custom_components.sncf_trains.config_flow.SncfApiClient",
         return_value=mock_api,
     ):
-        result = await hass.config_entries.subentries.flow.async_init(
+        result = await hass.config_entries.subentries.async_init(
             (entry.entry_id, "train"),
             context={"source": config_entries.SOURCE_USER},
         )
@@ -162,7 +178,7 @@ async def test_train_subentry_happy_path(hass):
         assert result["type"] is FlowResultType.FORM
         assert result["step_id"] == "departure_city"
 
-        result = await hass.config_entries.subentries.flow.async_configure(
+        result = await hass.config_entries.subentries.async_configure(
             result["flow_id"],
             user_input={
                 CONF_DEPARTURE_CITY: "Paris",
@@ -172,7 +188,7 @@ async def test_train_subentry_happy_path(hass):
         assert result["type"] is FlowResultType.FORM
         assert result["step_id"] == "departure_station"
 
-        result = await hass.config_entries.subentries.flow.async_configure(
+        result = await hass.config_entries.subentries.async_configure(
             result["flow_id"],
             user_input={
                 CONF_DEPARTURE_STATION: "stop_area:dep",
@@ -182,7 +198,7 @@ async def test_train_subentry_happy_path(hass):
         assert result["type"] is FlowResultType.FORM
         assert result["step_id"] == "arrival_city"
 
-        result = await hass.config_entries.subentries.flow.async_configure(
+        result = await hass.config_entries.subentries.async_configure(
             result["flow_id"],
             user_input={
                 CONF_ARRIVAL_CITY: "Lyon",
@@ -192,7 +208,7 @@ async def test_train_subentry_happy_path(hass):
         assert result["type"] is FlowResultType.FORM
         assert result["step_id"] == "arrival_station"
 
-        result = await hass.config_entries.subentries.flow.async_configure(
+        result = await hass.config_entries.subentries.async_configure(
             result["flow_id"],
             user_input={
                 CONF_ARRIVAL_STATION: "stop_area:arr",
@@ -202,7 +218,7 @@ async def test_train_subentry_happy_path(hass):
         assert result["type"] is FlowResultType.FORM
         assert result["step_id"] == "time_range"
 
-        result = await hass.config_entries.subentries.flow.async_configure(
+        result = await hass.config_entries.subentries.async_configure(
             result["flow_id"],
             user_input={
                 CONF_TIME_START: "07:00",
@@ -234,7 +250,7 @@ async def test_train_subentry_happy_path(hass):
 @pytest.mark.asyncio
 async def test_train_subentry_no_departure_stations(hass):
     """Test train subentry when no departure station is found."""
-    entry = config_entries.ConfigEntry(
+    entry = MockConfigEntry(
         version=1,
         minor_version=2,
         domain=DOMAIN,
@@ -252,12 +268,12 @@ async def test_train_subentry_no_departure_stations(hass):
         "custom_components.sncf_trains.config_flow.SncfApiClient",
         return_value=mock_api,
     ):
-        result = await hass.config_entries.subentries.flow.async_init(
+        result = await hass.config_entries.subentries.async_init(
             (entry.entry_id, "train"),
             context={"source": config_entries.SOURCE_USER},
         )
 
-        result = await hass.config_entries.subentries.flow.async_configure(
+        result = await hass.config_entries.subentries.async_configure(
             result["flow_id"],
             user_input={
                 CONF_DEPARTURE_CITY: "Paris",
@@ -272,7 +288,7 @@ async def test_train_subentry_no_departure_stations(hass):
 @pytest.mark.asyncio
 async def test_train_subentry_no_arrival_stations(hass):
     """Test train subentry when no arrival station is found."""
-    entry = config_entries.ConfigEntry(
+    entry = MockConfigEntry(
         version=1,
         minor_version=2,
         domain=DOMAIN,
@@ -300,26 +316,26 @@ async def test_train_subentry_no_arrival_stations(hass):
         "custom_components.sncf_trains.config_flow.SncfApiClient",
         return_value=mock_api,
     ):
-        result = await hass.config_entries.subentries.flow.async_init(
+        result = await hass.config_entries.subentries.async_init(
             (entry.entry_id, "train"),
             context={"source": config_entries.SOURCE_USER},
         )
 
-        result = await hass.config_entries.subentries.flow.async_configure(
+        result = await hass.config_entries.subentries.async_configure(
             result["flow_id"],
             user_input={
                 CONF_DEPARTURE_CITY: "Paris",
             },
         )
 
-        result = await hass.config_entries.subentries.flow.async_configure(
+        result = await hass.config_entries.subentries.async_configure(
             result["flow_id"],
             user_input={
                 CONF_DEPARTURE_STATION: "stop_area:dep",
             },
         )
 
-        result = await hass.config_entries.subentries.flow.async_configure(
+        result = await hass.config_entries.subentries.async_configure(
             result["flow_id"],
             user_input={
                 CONF_ARRIVAL_CITY: "Lyon",
@@ -349,7 +365,7 @@ async def test_train_subentry_duplicate(hass):
         "unique_id": "stop_area:dep_stop_area:arr_07:00_10:00",
     }
 
-    entry = config_entries.ConfigEntry(
+    entry = MockConfigEntry(
         version=1,
         minor_version=2,
         domain=DOMAIN,
@@ -383,40 +399,40 @@ async def test_train_subentry_duplicate(hass):
         "custom_components.sncf_trains.config_flow.SncfApiClient",
         return_value=mock_api,
     ):
-        result = await hass.config_entries.subentries.flow.async_init(
+        result = await hass.config_entries.subentries.async_init(
             (entry.entry_id, "train"),
             context={"source": config_entries.SOURCE_USER},
         )
 
-        result = await hass.config_entries.subentries.flow.async_configure(
+        result = await hass.config_entries.subentries.async_configure(
             result["flow_id"],
             user_input={
                 CONF_DEPARTURE_CITY: "Paris",
             },
         )
 
-        result = await hass.config_entries.subentries.flow.async_configure(
+        result = await hass.config_entries.subentries.async_configure(
             result["flow_id"],
             user_input={
                 CONF_DEPARTURE_STATION: "stop_area:dep",
             },
         )
 
-        result = await hass.config_entries.subentries.flow.async_configure(
+        result = await hass.config_entries.subentries.async_configure(
             result["flow_id"],
             user_input={
                 CONF_ARRIVAL_CITY: "Lyon",
             },
         )
 
-        result = await hass.config_entries.subentries.flow.async_configure(
+        result = await hass.config_entries.subentries.async_configure(
             result["flow_id"],
             user_input={
                 CONF_ARRIVAL_STATION: "stop_area:arr",
             },
         )
 
-        result = await hass.config_entries.subentries.flow.async_configure(
+        result = await hass.config_entries.subentries.async_configure(
             result["flow_id"],
             user_input={
                 CONF_TIME_START: "07:00",
@@ -432,7 +448,7 @@ async def test_train_subentry_duplicate(hass):
 @pytest.mark.asyncio
 async def test_options_flow(hass):
     """Test the integration options flow."""
-    entry = config_entries.ConfigEntry(
+    entry = MockConfigEntry(
         version=1,
         minor_version=2,
         domain=DOMAIN,
