@@ -204,7 +204,7 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
             "https://www.garesetconnexions.sncf/schedule-table/"
             f"Departures/{station_uic}"
         )
-        async with session.get(url, timeout=8) as response:
+        async with session.get(url, timeout=ClientTimeout(total=8)) as response:
             if response.status != 200:
                 _LOGGER.debug("G&C timetable HTTP %s", response.status)
                 return
