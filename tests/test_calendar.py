@@ -132,9 +132,13 @@ def test_invalid_journeys_are_skipped():
 
 def test_number_of_events_is_limited_by_train_count():
     journeys = [
-        _journey(f"2026110907{minute:02d}00", section_id=f"s{minute}")
+        _journey(
+            f"20261109T07{minute:02d}00",
+            section_id=f"s{minute}",
+        )
         for minute in range(3)
     ]
+
     calendar = _calendar({"sub1": journeys}, train_count=2)
 
     events = calendar._fetch_journeys()
