@@ -30,6 +30,9 @@
           "outside_interval": "Outside interval (minutes)"
         }
       }
+    },
+    "error": {
+      "invalid_interval": "Invalid interval (update: 1-120 min, outside: 1-1440 min)."
     }
   },
   "config_subentries": {
@@ -55,13 +58,13 @@
         "arrival_city": {
           "title": "Select arrival city",
           "data": {
-            "departure_city": "City name"
+            "arrival_city": "City name"
           }
         },
         "arrival_station": {
           "title": "Select arrival station",
           "data": {
-            "departure_station": "Station name"
+            "arrival_station": "Station name"
           }
         },
         "time_range": {
@@ -82,7 +85,9 @@
         }
       },
       "error": {
-        "no_stations": "No station for this city"
+        "no_stations": "No station for this city",
+        "invalid_time": "Invalid time. Use the HH:MM format (e.g. 07:30).",
+        "invalid_train_count": "The number of trains must be between 1 and 10."
       },
       "abort": {
         "already_configured_as_entry": "Already train is configured",
