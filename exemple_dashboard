@@ -1,44 +1,30 @@
 type: markdown
 content: |
-  ### 🚄 Départs XX → XX
+
   {% for train in [
-    'sensor.sncf_train_1_XX',
-    'sensor.sncf_train_2_XX',
-    'sensor.sncf_train_3_XX',
-    'sensor.sncf_train_4_XX'
+    'sensor.sncf_xx',
+    'sensor.sncf_xx',
+    'sensor.sncf_xx'
   ] %}
+
     {% set t = state_attr(train, 'departure_time') %}
     {% set b = state_attr(train, 'base_departure_time') %}
-    {% set r = state_attr(train, 'delay_minutes') | int(0) %}
-    {% set name = state_attr(train, 'direction') | default("Inconnu") %}
+    {% set r_raw = state_attr(train, 'delay_minutes') %}
+    {% set tr = state_attr(train, 'platform') %}
+    {% set name = state_attr(train, 'direction') | default("N/A", true) %}
 
-    {% set t_short = (t.split(' - ')[0][:5] ~ ' - ' ~ t.split(' - ')[1]) if t else '??/?? - ??:??' %}
-    {% set b_short = (b.split(' - ')[0][:5] ~ ' - ' ~ b.split(' - ')[1]) if b else '??/?? - ??:??' %}
-    {% set s = "<s>" ~ b_short ~ "</s> " ~ t_short if r > 0 else t_short %}
-    {% set st = "🚨 Retard: " ~ r ~ " min" if r > 0 else "✅ À l'heure" %}
+    {% set t_short = (t.split(' - ')[0][:5] ~ ' - ' ~ t.split(' - ')[1]) if t else 'N/A' %}
+    {% set b_short = (b.split(' - ')[0][:5] ~ ' - ' ~ b.split(' - ')[1]) if b else 'N/A' %}
 
-    **{{ s }} - {{ name }} - {{ st }}**
+    {% if r_raw is not none and is_number(r_raw) %}
+      {% set r = r_raw | int %}
+      {% set s = "<s>" ~ b_short ~ "</s> " ~ t_short if r > 0 else t_short %}
+      {% set st = "🚨 Retard: " ~ r ~ " min" if r > 0 else "✅ À l'heure" %}
+    {% else %}
+      {% set s = t_short %}
+      {% set st = "N/A" %}
+    {% endif %}
+
+    **{{ s }} - {{ name }} - {{ st }} - {{ tr | default("N/A", true) }}**
+
   {% endfor %}
-
-  ### 🚄 Départs XX → XX
-  {% for train in [
-    'sensor.sncf_train_1_XX',
-    'sensor.sncf_train_2_XX',
-    'sensor.sncf_train_3_XX',
-    'sensor.sncf_train_4_XX'
-  ] %}
-    {% set t = state_attr(train, 'departure_time') %}
-    {% set b = state_attr(train, 'base_departure_time') %}
-    {% set r = state_attr(train, 'delay_minutes') | int(0) %}
-    {% set name = state_attr(train, 'direction') | default("Inconnu") %}
-
-    {% set t_short = (t.split(' - ')[0][:5] ~ ' - ' ~ t.split(' - ')[1]) if t else '??/?? - ??:??' %}
-    {% set b_short = (b.split(' - ')[0][:5] ~ ' - ' ~ b.split(' - ')[1]) if b else '??/?? - ??:??' %}
-    {% set s = "<s>" ~ b_short ~ "</s> " ~ t_short if r > 0 else t_short %}
-    {% set st = "🚨 Retard: " ~ r ~ " min" if r > 0 else "✅ À l'heure" %}
-
-    **{{ s }} - {{ name }} - {{ st }}**
-  {% endfor %}
-grid_options:
-  columns: 18
-  rows: auto
