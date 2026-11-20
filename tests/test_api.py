@@ -121,6 +121,24 @@ async def test_fetch_journeys_sends_expected_query(client, aioclient_mock):
     assert headers["Authorization"] == f"Basic {encode_token('my_key')}"
 
 
+async def test_fetch_journeys_base_schedule(client, aioclient_mock):
+    """Theoretical schedules can be requested explicitly during RT outages."""
+    aioclient_mock.get(JOURNEYS_URL, json={"journeys": [{"id": "scheduled"}]})
+
+    result = await client.fetch_journeys(
+        "stop_area:dep",
+        "stop_area:arr",
+        "20261124T070000",
+        count=10,
+        data_freshness="base_schedule",
+    )
+
+    assert result == [{"id": "scheduled", "disruptions": []}]
+    _, url, _, _ = _last_call(aioclient_mock)
+    assert url.query["data_freshness"] == "base_schedule"
+    assert url.query["count"] == "10"
+
+
 async def test_fetch_journeys_attaches_disruptions(client, aioclient_mock):
     aioclient_mock.get(
         JOURNEYS_URL,
