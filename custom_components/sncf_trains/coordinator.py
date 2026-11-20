@@ -3,7 +3,7 @@
 import asyncio
 import logging
 import re
-from datetime import timedelta
+from datetime import date, timedelta
 from typing import Any
 
 from aiohttp import ClientError, ClientTimeout
@@ -20,6 +20,8 @@ from .api import SncfApiClient
 from .const import (
     CONF_API_KEY,
     CONF_FROM,
+    CONF_DEPARTURE_NAME,
+    CONF_ARRIVAL_NAME,
     CONF_OUTSIDE_INTERVAL,
     CONF_TIME_END,
     CONF_TIME_START,
@@ -39,6 +41,9 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
         """Initialisation."""
         self.entry = entry
         self.api_client = None
+        # IDs NeTEx may differ from the legacy Navitia IDs. Cache resolved IDs
+        # for this coordinator lifetime; persisted station names remain stable.
+        self._netex_station_ids: dict[tuple[str, str], tuple[str, str]] = {}
 
         self.update_interval_minutes = entry.options.get(
             CONF_UPDATE_INTERVAL,
@@ -332,6 +337,66 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
                     journey["train_length"] = detail.get("trainLength")
                 break
     
+    @staticmethod
+    def _normalize_station_name(value: Any) -> str:
+        """Normalize station labels for matching API place search results."""
+        import unicodedata
+
+        text = unicodedata.normalize("NFKD", str(value or ""))
+        return " ".join(
+            "".join(char for char in text if not unicodedata.combining(char))
+            .casefold()
+            .replace("-", " ")
+            .split()
+        )
+
+    async def _resolve_station_ids(
+        self, departure_name: str, arrival_name: str
+    ) -> tuple[str, str] | None:
+        """Resolve saved station names to the current SNCF repository IDs."""
+        cache_key = (departure_name, arrival_name)
+        if cache_key in self._netex_station_ids:
+            return self._netex_station_ids[cache_key]
+
+        resolved: list[str] = []
+        for station_name in cache_key:
+            places = await self.api_client.search_stations(station_name)
+            if not places:
+                _LOGGER.warning(
+                    "Impossible de résoudre la gare SNCF '%s' avec le nouveau référentiel",
+                    station_name,
+                )
+                return None
+
+            wanted = self._normalize_station_name(station_name)
+            candidates = [
+                place for place in places
+                if isinstance(place, dict)
+                and isinstance(place.get("id"), str)
+                and place["id"].startswith(("stop_area:", "stop_point:"))
+            ]
+            exact = next(
+                (
+                    place for place in candidates
+                    if self._normalize_station_name(place.get("name")) == wanted
+                ),
+                None,
+            )
+            # The search endpoint can return a station label with a suffix
+            # (e.g. "Paris (toutes gares)"). Never silently select an
+            # unrelated result: require an exact normalized name match.
+            if exact is None:
+                _LOGGER.warning(
+                    "Aucun résultat exact pour la gare '%s' dans le nouveau référentiel",
+                    station_name,
+                )
+                return None
+            resolved.append(exact["id"])
+
+        result = (resolved[0], resolved[1])
+        self._netex_station_ids[cache_key] = result
+        return result
+
     async def _async_update_data(self) -> dict[str, Any]:
         """Récupère les données de l'API SNCF."""
 
@@ -400,6 +465,49 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
 
                 if attempt < max_retries:
                     await asyncio.sleep(retry_delay)
+
+            # ---------------------------------------------------------
+            # Compatibilité avec le nouveau référentiel SNCF (24/11/2026).
+            # En cas d'absence de temps réel, demander les horaires théoriques.
+            # Si les anciens IDs ne sont plus reconnus, les résoudre par les
+            # noms de gares conservés dans la sous-entrée puis retenter.
+            # ---------------------------------------------------------
+            if dt_util.now().date() >= date(2026, 11, 24) and (
+                journeys is None or not journeys
+            ):
+                try:
+                    journeys = await self.api_client.fetch_journeys(
+                        departure, arrival, datetime_str, count=10,
+                        data_freshness="base_schedule",
+                    )
+                except (ClientError, asyncio.TimeoutError, RuntimeError) as err:
+                    _LOGGER.warning("Horaires théoriques indisponibles : %s", err)
+
+                if journeys is None or not journeys:
+                    departure_name = entry.data.get(CONF_DEPARTURE_NAME)
+                    arrival_name = entry.data.get(CONF_ARRIVAL_NAME)
+                    if departure_name and arrival_name:
+                        new_ids = await self._resolve_station_ids(
+                            departure_name, arrival_name
+                        )
+                        if new_ids and new_ids != (departure, arrival):
+                            _LOGGER.info(
+                                "Nouveaux identifiants SNCF pour '%s' : %s",
+                                entry.title, new_ids,
+                            )
+                            try:
+                                journeys = await self.api_client.fetch_journeys(
+                                    new_ids[0], new_ids[1], datetime_str, count=10
+                                )
+                                if journeys is None or not journeys:
+                                    journeys = await self.api_client.fetch_journeys(
+                                        new_ids[0], new_ids[1], datetime_str,
+                                        count=10, data_freshness="base_schedule",
+                                    )
+                            except (ClientError, asyncio.TimeoutError, RuntimeError) as err:
+                                _LOGGER.warning(
+                                    "Échec avec les nouveaux identifiants SNCF : %s", err
+                                )
 
             # ---------------------------------------------------------
             # Vérification de la réponse API

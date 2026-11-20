@@ -66,7 +66,8 @@ class SncfApiClient:
             return None
 
     async def fetch_journeys(
-        self, from_id: str, to_id: str, datetime_str: str, count: int = 5
+        self, from_id: str, to_id: str, datetime_str: str, count: int = 5,
+        data_freshness: str = "realtime",
     ) -> Optional[List[dict]]:
         url = f"{API_BASE}/v1/coverage/sncf/journeys"
         params_raw: dict[str, object] = {
@@ -74,7 +75,7 @@ class SncfApiClient:
             "to": to_id,
             "datetime": datetime_str,
             "count": count,
-            "data_freshness": "realtime",
+            "data_freshness": data_freshness,
             "datetime_represents": "departure",
         }
         params: Mapping[str, str] = {k: str(v) for k, v in params_raw.items()}
