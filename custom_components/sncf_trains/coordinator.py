@@ -3,7 +3,8 @@
 import asyncio
 import logging
 import re
-from datetime import date, timedelta
+import time
+from datetime import timedelta
 from typing import Any
 
 from aiohttp import ClientError, ClientTimeout
@@ -33,6 +34,10 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
+# Après un échec complet du repli (horaires théoriques + résolution des IDs),
+# on ne retente pas avant ce délai afin de ne pas consommer le quota de l'API.
+FALLBACK_RETRY_SECONDS = 30 * 60
+
 
 class SncfUpdateCoordinator(DataUpdateCoordinator):
     """Coordonnateur pour récupérer les données des trajets SNCF."""
@@ -44,6 +49,8 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
         # IDs NeTEx may differ from the legacy Navitia IDs. Cache resolved IDs
         # for this coordinator lifetime; persisted station names remain stable.
         self._netex_station_ids: dict[tuple[str, str], tuple[str, str]] = {}
+        # subentry_id -> instant (time.monotonic) avant lequel le repli est suspendu
+        self._fallback_retry_at: dict[str, float] = {}
 
         self.update_interval_minutes = entry.options.get(
             CONF_UPDATE_INTERVAL,
@@ -80,6 +87,68 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
                 err,
             )
             raise UpdateFailed(err) from err
+
+        await self._async_backfill_station_names()
+
+    @staticmethod
+    def _needs_station_name(name: Any, station_id: str) -> bool:
+        """Indique si le nom enregistré est absent ou n'est qu'un identifiant."""
+        if not isinstance(name, str) or not name.strip():
+            return True
+        return name == station_id or name.startswith(
+            ("stop_area:", "stop_point:", "admin:")
+        )
+
+    async def _async_backfill_station_names(self) -> None:
+        """Complète les noms de gares manquants des trajets déjà configurés.
+
+        Les trajets migrés depuis d'anciennes versions peuvent n'avoir que des
+        identifiants, ce qui empêche de retrouver les nouveaux IDs NeTEx.
+        Tant que les anciens IDs sont reconnus par l'API, on récupère le nom
+        et on le sauvegarde dans la sous-entrée. Meilleur effort : toute erreur
+        est ignorée et sera retentée au prochain démarrage.
+        """
+        if self.api_client is None:
+            return
+
+        for subentry in self.entry.subentries.values():
+            data = dict(subentry.data)
+            changes: dict[str, str] = {}
+            for id_key, name_key in (
+                (CONF_FROM, CONF_DEPARTURE_NAME),
+                (CONF_TO, CONF_ARRIVAL_NAME),
+            ):
+                station_id = data.get(id_key)
+                if not isinstance(station_id, str):
+                    continue
+                if not self._needs_station_name(data.get(name_key), station_id):
+                    continue
+                try:
+                    name = await self.api_client.fetch_station_name(station_id)
+                except ConfigEntryAuthFailed:
+                    raise
+                except Exception as err:  # noqa: BLE001 - meilleur effort
+                    _LOGGER.debug(
+                        "Nom de gare introuvable pour %s : %s", station_id, err
+                    )
+                    continue
+                if name:
+                    changes[name_key] = name
+
+            if changes:
+                try:
+                    self.hass.config_entries.async_update_subentry(
+                        self.entry, subentry, data={**data, **changes}
+                    )
+                    _LOGGER.info(
+                        "Noms de gares enregistrés pour '%s' : %s",
+                        subentry.title,
+                        changes,
+                    )
+                except Exception as err:  # noqa: BLE001 - meilleur effort
+                    _LOGGER.warning(
+                        "Impossible d'enregistrer les noms de gares : %s", err
+                    )
 
     def _build_datetime_param(self, time_start, time_end) -> str:
         """Construit le paramètre datetime pour l'API."""
@@ -397,6 +466,80 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
         self._netex_station_ids[cache_key] = result
         return result
 
+    def _fallback_allowed(self, subentry_id: str) -> bool:
+        """Indique si le repli (horaires théoriques / nouveaux IDs) est permis."""
+        return time.monotonic() >= self._fallback_retry_at.get(subentry_id, 0.0)
+
+    async def _async_fallback_journeys(
+        self, entry: Any, departure: str, arrival: str, datetime_str: str
+    ) -> tuple[list | None, tuple[str, str] | None]:
+        """Repli : horaires théoriques, puis résolution des nouveaux IDs.
+
+        Retourne (trajets, nouveaux_ids). nouveaux_ids n'est renseigné que si
+        les trajets ont été obtenus avec des IDs différents de ceux enregistrés.
+        """
+        journeys = None
+        try:
+            journeys = await self.api_client.fetch_journeys(
+                departure, arrival, datetime_str, count=10,
+                data_freshness="base_schedule",
+            )
+        except (ClientError, asyncio.TimeoutError, RuntimeError) as err:
+            _LOGGER.warning("Horaires théoriques indisponibles : %s", err)
+        if journeys:
+            return journeys, None
+
+        departure_name = entry.data.get(CONF_DEPARTURE_NAME)
+        arrival_name = entry.data.get(CONF_ARRIVAL_NAME)
+        if not (departure_name and arrival_name):
+            return journeys, None
+        if self._needs_station_name(
+            departure_name, departure
+        ) or self._needs_station_name(arrival_name, arrival):
+            _LOGGER.warning(
+                "Trajet '%s' : noms de gares absents, impossible de retrouver "
+                "les nouveaux identifiants. Recréez le trajet.",
+                entry.title,
+            )
+            return journeys, None
+
+        new_ids = await self._resolve_station_ids(departure_name, arrival_name)
+        if not new_ids or new_ids == (departure, arrival):
+            return journeys, None
+
+        _LOGGER.info(
+            "Nouveaux identifiants SNCF pour '%s' : %s", entry.title, new_ids
+        )
+        try:
+            journeys = await self.api_client.fetch_journeys(
+                new_ids[0], new_ids[1], datetime_str, count=10
+            )
+            if not journeys:
+                journeys = await self.api_client.fetch_journeys(
+                    new_ids[0], new_ids[1], datetime_str,
+                    count=10, data_freshness="base_schedule",
+                )
+        except (ClientError, asyncio.TimeoutError, RuntimeError) as err:
+            _LOGGER.warning("Échec avec les nouveaux identifiants SNCF : %s", err)
+            return None, None
+        return journeys, new_ids if journeys else None
+
+    def _persist_station_ids(self, subentry: Any, new_ids: tuple[str, str]) -> None:
+        """Enregistre les nouveaux IDs dans la sous-entrée (meilleur effort)."""
+        try:
+            self.hass.config_entries.async_update_subentry(
+                self.entry,
+                subentry,
+                data={**subentry.data, CONF_FROM: new_ids[0], CONF_TO: new_ids[1]},
+            )
+            _LOGGER.info(
+                "Identifiants SNCF mis à jour pour '%s'", subentry.title
+            )
+        except Exception as err:  # noqa: BLE001 - ne doit pas casser la mise à jour
+            _LOGGER.warning(
+                "Impossible d'enregistrer les nouveaux identifiants : %s", err
+            )
+
     async def _async_update_data(self) -> dict[str, Any]:
         """Récupère les données de l'API SNCF."""
 
@@ -406,6 +549,7 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
 
         update_intervals = []
         trains = {}
+        pending_id_updates: list[tuple[Any, tuple[str, str]]] = []
 
         max_retries = 3
         retry_delay = 2
@@ -467,47 +611,24 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
                     await asyncio.sleep(retry_delay)
 
             # ---------------------------------------------------------
-            # Compatibilité avec le nouveau référentiel SNCF (24/11/2026).
-            # En cas d'absence de temps réel, demander les horaires théoriques.
-            # Si les anciens IDs ne sont plus reconnus, les résoudre par les
-            # noms de gares conservés dans la sous-entrée puis retenter.
+            # Compatibilité avec le nouveau référentiel SNCF (NeTEx/SIRI,
+            # 24/11/2026) : si rien n'est reçu, on demande les horaires
+            # théoriques, puis on tente de retrouver les nouveaux IDs à partir
+            # des noms de gares. Un échec complet suspend le repli pendant
+            # FALLBACK_RETRY_SECONDS pour économiser le quota.
             # ---------------------------------------------------------
-            if dt_util.now().date() >= date(2026, 11, 24) and (
-                journeys is None or not journeys
-            ):
-                try:
-                    journeys = await self.api_client.fetch_journeys(
-                        departure, arrival, datetime_str, count=10,
-                        data_freshness="base_schedule",
+            if not journeys and self._fallback_allowed(subentry_id):
+                journeys, new_ids = await self._async_fallback_journeys(
+                    entry, departure, arrival, datetime_str
+                )
+                if journeys:
+                    self._fallback_retry_at.pop(subentry_id, None)
+                    if new_ids:
+                        pending_id_updates.append((entry, new_ids))
+                else:
+                    self._fallback_retry_at[subentry_id] = (
+                        time.monotonic() + FALLBACK_RETRY_SECONDS
                     )
-                except (ClientError, asyncio.TimeoutError, RuntimeError) as err:
-                    _LOGGER.warning("Horaires théoriques indisponibles : %s", err)
-
-                if journeys is None or not journeys:
-                    departure_name = entry.data.get(CONF_DEPARTURE_NAME)
-                    arrival_name = entry.data.get(CONF_ARRIVAL_NAME)
-                    if departure_name and arrival_name:
-                        new_ids = await self._resolve_station_ids(
-                            departure_name, arrival_name
-                        )
-                        if new_ids and new_ids != (departure, arrival):
-                            _LOGGER.info(
-                                "Nouveaux identifiants SNCF pour '%s' : %s",
-                                entry.title, new_ids,
-                            )
-                            try:
-                                journeys = await self.api_client.fetch_journeys(
-                                    new_ids[0], new_ids[1], datetime_str, count=10
-                                )
-                                if journeys is None or not journeys:
-                                    journeys = await self.api_client.fetch_journeys(
-                                        new_ids[0], new_ids[1], datetime_str,
-                                        count=10, data_freshness="base_schedule",
-                                    )
-                            except (ClientError, asyncio.TimeoutError, RuntimeError) as err:
-                                _LOGGER.warning(
-                                    "Échec avec les nouveaux identifiants SNCF : %s", err
-                                )
 
             # ---------------------------------------------------------
             # Vérification de la réponse API
@@ -639,5 +760,9 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
                     "Coordinator update interval set to %s minutes",
                     self.update_interval.total_seconds() / 60,
                 )
+
+        # Sauvegarde des IDs résolus (déclenche un rechargement de l'intégration).
+        for subentry, new_ids in pending_id_updates:
+            self._persist_station_ids(subentry, new_ids)
 
         return trains

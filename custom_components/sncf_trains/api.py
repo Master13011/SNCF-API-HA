@@ -122,3 +122,50 @@ class SncfApiClient:
         except (ClientError, asyncio.TimeoutError) as err:
             _LOGGER.error("Network error searching stations from SNCF API: %s", err)
             return None
+
+    async def fetch_station_name(self, stop_id: str) -> Optional[str]:
+        """Return the display name of a stop (as shown by the places search).
+
+        Used to backfill station names of journeys saved before names were
+        stored. Returns None if the stop is unknown or the request fails.
+        """
+        if stop_id.startswith("stop_area:"):
+            url = f"{API_BASE}/v1/coverage/sncf/stop_areas/{stop_id}"
+            key = "stop_areas"
+        elif stop_id.startswith("stop_point:"):
+            url = f"{API_BASE}/v1/coverage/sncf/stop_points/{stop_id}"
+            key = "stop_points"
+        else:
+            return None
+
+        headers = {"Authorization": f"Basic {self._token}"}
+        try:
+            async with self._session.get(
+                url,
+                headers=headers,
+                timeout=ClientTimeout(total=self._timeout),
+            ) as resp:
+                if resp.status == 401:
+                    raise ConfigEntryAuthFailed("Unauthorized: check your API key.")
+                if resp.status == 404:
+                    return None
+                resp.raise_for_status()
+                data = await resp.json()
+        except (ClientError, asyncio.TimeoutError) as err:
+            _LOGGER.debug("Network error fetching station %s: %s", stop_id, err)
+            return None
+
+        items = data.get(key) or []
+        if not items or not isinstance(items[0], dict):
+            return None
+        stop = items[0]
+        name = stop.get("name")
+        if not name:
+            return None
+        # The places search labels stops "Name (City)"; rebuild that label.
+        regions = stop.get("administrative_regions") or []
+        city = next(
+            (r.get("name") for r in regions if isinstance(r, dict) and r.get("level") == 8),
+            None,
+        ) or next((r.get("name") for r in regions if isinstance(r, dict) and r.get("name")), None)
+        return f"{name} ({city})" if city else name
