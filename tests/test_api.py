@@ -121,6 +121,24 @@ async def test_fetch_journeys_sends_expected_query(client, aioclient_mock):
     assert headers["Authorization"] == f"Basic {encode_token('my_key')}"
 
 
+async def test_fetch_journeys_base_schedule(client, aioclient_mock):
+    """Theoretical schedules can be requested explicitly during RT outages."""
+    aioclient_mock.get(JOURNEYS_URL, json={"journeys": [{"id": "scheduled"}]})
+
+    result = await client.fetch_journeys(
+        "stop_area:dep",
+        "stop_area:arr",
+        "20261124T070000",
+        count=10,
+        data_freshness="base_schedule",
+    )
+
+    assert result == [{"id": "scheduled", "disruptions": []}]
+    _, url, _, _ = _last_call(aioclient_mock)
+    assert url.query["data_freshness"] == "base_schedule"
+    assert url.query["count"] == "10"
+
+
 async def test_fetch_journeys_attaches_disruptions(client, aioclient_mock):
     aioclient_mock.get(
         JOURNEYS_URL,
@@ -208,3 +226,64 @@ async def test_search_stations_network_error_returns_none(
 ):
     aioclient_mock.get(PLACES_URL, exc=error)
     assert await client.search_stations("Lyon") is None
+
+
+# --- fetch_station_name ------------------------------------------------------
+
+STOP_AREA_URL = f"{API_BASE}/v1/coverage/sncf/stop_areas/{STOP_AREA}"
+STOP_POINT_URL = f"{API_BASE}/v1/coverage/sncf/stop_points/{STOP_POINT}"
+
+
+async def test_fetch_station_name_stop_area_with_city(client, aioclient_mock):
+    aioclient_mock.get(
+        STOP_AREA_URL,
+        json={
+            "stop_areas": [
+                {
+                    "name": "Lyon Part-Dieu",
+                    "administrative_regions": [
+                        {"name": "Rhône", "level": 6},
+                        {"name": "Lyon", "level": 8},
+                    ],
+                }
+            ]
+        },
+    )
+    assert await client.fetch_station_name(STOP_AREA) == "Lyon Part-Dieu (Lyon)"
+    assert _last_call(aioclient_mock)[3]["Authorization"] == (
+        f"Basic {encode_token('my_key')}"
+    )
+
+
+async def test_fetch_station_name_stop_point_without_region(client, aioclient_mock):
+    aioclient_mock.get(STOP_POINT_URL, json={"stop_points": [{"name": "Lyon"}]})
+    assert await client.fetch_station_name(STOP_POINT) == "Lyon"
+
+
+async def test_fetch_station_name_unknown_id_without_request(client, aioclient_mock):
+    assert await client.fetch_station_name("admin:fr:69123") is None
+    assert aioclient_mock.call_count == 0
+
+
+async def test_fetch_station_name_not_found(client, aioclient_mock):
+    aioclient_mock.get(STOP_AREA_URL, status=404)
+    assert await client.fetch_station_name(STOP_AREA) is None
+
+
+async def test_fetch_station_name_empty_payload(client, aioclient_mock):
+    aioclient_mock.get(STOP_AREA_URL, json={"stop_areas": []})
+    assert await client.fetch_station_name(STOP_AREA) is None
+
+
+async def test_fetch_station_name_unauthorized(client, aioclient_mock):
+    aioclient_mock.get(STOP_AREA_URL, status=401)
+    with pytest.raises(ConfigEntryAuthFailed):
+        await client.fetch_station_name(STOP_AREA)
+
+
+@pytest.mark.parametrize("error", [ClientError("boom"), asyncio.TimeoutError()])
+async def test_fetch_station_name_network_error_returns_none(
+    client, aioclient_mock, error
+):
+    aioclient_mock.get(STOP_AREA_URL, exc=error)
+    assert await client.fetch_station_name(STOP_AREA) is None

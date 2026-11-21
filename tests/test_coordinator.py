@@ -10,6 +10,8 @@ from homeassistant.helpers.update_coordinator import UpdateFailed
 
 from custom_components.sncf_trains.const import (
     CONF_API_KEY,
+    CONF_ARRIVAL_NAME,
+    CONF_DEPARTURE_NAME,
     CONF_FROM,
     CONF_OUTSIDE_INTERVAL,
     CONF_TIME_END,
@@ -58,6 +60,8 @@ def _create_subentry(
     subentry.data = {
         CONF_FROM: departure,
         CONF_TO: arrival,
+        CONF_DEPARTURE_NAME: "Paris",
+        CONF_ARRIVAL_NAME: "Lyon",
         CONF_TIME_START: time_start,
         CONF_TIME_END: time_end,
     }
@@ -213,7 +217,8 @@ async def test_coordinator_api_returns_none(hass):
 
     assert data == {}
 
-    assert mock_api.fetch_journeys.await_count == 3
+    # 3 realtime attempts + 1 theoretical-schedule fallback (no date gate)
+    assert mock_api.fetch_journeys.await_count == 4
 
 
 @pytest.mark.asyncio
@@ -407,6 +412,266 @@ async def test_coordinator_retries_client_error(hass):
 
     assert mock_api.fetch_journeys.await_count == 2
     mock_sleep.assert_awaited_once_with(2)
+
+
+@pytest.mark.asyncio
+async def test_coordinator_uses_theoretical_schedule_after_realtime_is_empty(hass):
+    """Use base_schedule when realtime has no journeys after migration date."""
+    subentry = _create_subentry()
+    entry = _create_entry(subentries={"subentry_1": subentry})
+    coordinator = SncfUpdateCoordinator(hass, entry)
+
+    mock_api = AsyncMock()
+    mock_api.fetch_journeys = AsyncMock(side_effect=[[], [{"id": "scheduled", "nb_transfers": 0}]])
+    coordinator.api_client = mock_api
+
+    with patch(
+        "custom_components.sncf_trains.coordinator.dt_util.now",
+        return_value=datetime(2026, 11, 24, 8, 0),
+    ):
+        data = await coordinator._async_update_data()
+
+    assert data == {"subentry_1": [{"id": "scheduled", "nb_transfers": 0}]}
+    assert mock_api.fetch_journeys.await_count == 2
+    assert mock_api.fetch_journeys.await_args_list[0].kwargs == {"count": 10}
+    assert mock_api.fetch_journeys.await_args_list[1].kwargs == {
+        "count": 10,
+        "data_freshness": "base_schedule",
+    }
+    mock_api.search_stations.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_coordinator_resolves_new_station_ids_after_old_ids_fail(hass):
+    """Resolve the saved station names and retry with new repository IDs."""
+    subentry = _create_subentry()
+    entry = _create_entry(subentries={"subentry_1": subentry})
+    coordinator = SncfUpdateCoordinator(hass, entry)
+
+    mock_api = AsyncMock()
+    mock_api.fetch_journeys = AsyncMock(
+        side_effect=[
+            [],  # Legacy IDs, realtime
+            [],  # Legacy IDs, theoretical schedule
+            [{"id": "new_ids_journey", "nb_transfers": 0}],  # New IDs, realtime
+        ]
+    )
+    mock_api.search_stations = AsyncMock(
+        side_effect=[
+            [{"id": "stop_area:new_paris", "name": "Paris"}],
+            [{"id": "stop_area:new_lyon", "name": "Lyon"}],
+        ]
+    )
+    coordinator.api_client = mock_api
+
+    with (
+        patch(
+            "custom_components.sncf_trains.coordinator.dt_util.now",
+            return_value=datetime(2026, 11, 24, 8, 0),
+        ),
+        patch.object(
+            hass.config_entries, "async_update_subentry"
+        ) as mock_update_subentry,
+    ):
+        data = await coordinator._async_update_data()
+
+    assert data == {
+        "subentry_1": [{"id": "new_ids_journey", "nb_transfers": 0}]
+    }
+    # The resolved IDs are saved in the subentry (survive restarts)
+    mock_update_subentry.assert_called_once()
+    saved = mock_update_subentry.call_args.kwargs["data"]
+    assert saved[CONF_FROM] == "stop_area:new_paris"
+    assert saved[CONF_TO] == "stop_area:new_lyon"
+    assert mock_api.search_stations.await_args_list[0].args == ("Paris",)
+    assert mock_api.search_stations.await_args_list[1].args == ("Lyon",)
+    assert mock_api.fetch_journeys.await_args_list[2].args[:2] == (
+        "stop_area:new_paris",
+        "stop_area:new_lyon",
+    )
+
+
+@pytest.mark.asyncio
+async def test_coordinator_resolves_station_names_without_case_or_accent_sensitivity(hass):
+    """Station matching tolerates case, accents and whitespace differences."""
+    coordinator = SncfUpdateCoordinator(hass, _create_entry())
+    mock_api = AsyncMock()
+    mock_api.search_stations = AsyncMock(
+        side_effect=[
+            [{"id": "stop_area:paris", "name": "PARIS"}],
+            [{"id": "stop_area:lyon", "name": "Lyon Part-Dieu"}],
+        ]
+    )
+    coordinator.api_client = mock_api
+
+    result = await coordinator._resolve_station_ids(" Paris ", "Lyon Part-Dieu")
+
+    assert result == ("stop_area:paris", "stop_area:lyon")
+    assert await coordinator._resolve_station_ids(" Paris ", "Lyon Part-Dieu") == result
+    assert mock_api.search_stations.await_count == 2  # cached on second call
+
+
+@pytest.mark.asyncio
+async def test_coordinator_does_not_choose_ambiguous_station_result(hass):
+    """Do not silently pick a similar but non-identical station name."""
+    coordinator = SncfUpdateCoordinator(hass, _create_entry())
+    mock_api = AsyncMock()
+    mock_api.search_stations = AsyncMock(
+        return_value=[{"id": "stop_area:paris_all", "name": "Paris (toutes gares)"}]
+    )
+    coordinator.api_client = mock_api
+
+    result = await coordinator._resolve_station_ids("Paris", "Lyon")
+
+    assert result is None
+    mock_api.search_stations.assert_awaited_once_with("Paris")
+
+
+@pytest.mark.asyncio
+async def test_coordinator_fallback_not_gated_by_date(hass):
+    """The theoretical-schedule fallback no longer depends on a fixed date."""
+    subentry = _create_subentry()
+    entry = _create_entry(subentries={"subentry_1": subentry})
+    coordinator = SncfUpdateCoordinator(hass, entry)
+
+    mock_api = AsyncMock()
+    mock_api.fetch_journeys = AsyncMock(
+        side_effect=[[], [{"id": "scheduled", "nb_transfers": 0}]]
+    )
+    coordinator.api_client = mock_api
+
+    with patch(
+        "custom_components.sncf_trains.coordinator.dt_util.now",
+        return_value=datetime(2026, 8, 21, 8, 0),
+    ):
+        data = await coordinator._async_update_data()
+
+    assert data == {"subentry_1": [{"id": "scheduled", "nb_transfers": 0}]}
+    assert mock_api.fetch_journeys.await_args_list[1].kwargs["data_freshness"] == (
+        "base_schedule"
+    )
+
+
+@pytest.mark.asyncio
+async def test_coordinator_fallback_suspended_after_failure(hass):
+    """A failed fallback is not retried until the delay has elapsed."""
+    subentry = _create_subentry()
+    entry = _create_entry(subentries={"subentry_1": subentry})
+    coordinator = SncfUpdateCoordinator(hass, entry)
+
+    mock_api = AsyncMock()
+    mock_api.fetch_journeys = AsyncMock(return_value=[])
+    mock_api.search_stations = AsyncMock(return_value=[])
+    coordinator.api_client = mock_api
+
+    with patch(
+        "custom_components.sncf_trains.coordinator.dt_util.now",
+        return_value=datetime(2026, 11, 24, 8, 0),
+    ):
+        await coordinator._async_update_data()
+        calls_after_first = mock_api.fetch_journeys.await_count
+        searches_after_first = mock_api.search_stations.await_count
+        assert calls_after_first == 2  # realtime + theoretical
+        assert searches_after_first == 1  # departure lookup fails, stops there
+
+        # Second refresh: only the realtime call, no fallback, no search
+        await coordinator._async_update_data()
+        assert mock_api.fetch_journeys.await_count == calls_after_first + 1
+        assert mock_api.search_stations.await_count == searches_after_first
+
+        # Once the delay has elapsed the fallback is attempted again
+        coordinator._fallback_retry_at["subentry_1"] = 0.0
+        await coordinator._async_update_data()
+        assert mock_api.search_stations.await_count == searches_after_first + 1
+
+
+@pytest.mark.asyncio
+async def test_coordinator_fallback_resets_after_success(hass):
+    """A successful fallback clears the suspension."""
+    subentry = _create_subentry()
+    entry = _create_entry(subentries={"subentry_1": subentry})
+    coordinator = SncfUpdateCoordinator(hass, entry)
+    coordinator._fallback_retry_at["subentry_1"] = 0.0
+
+    mock_api = AsyncMock()
+    mock_api.fetch_journeys = AsyncMock(
+        side_effect=[[], [{"id": "scheduled", "nb_transfers": 0}]]
+    )
+    coordinator.api_client = mock_api
+
+    with patch(
+        "custom_components.sncf_trains.coordinator.dt_util.now",
+        return_value=datetime(2026, 11, 24, 8, 0),
+    ):
+        await coordinator._async_update_data()
+
+    assert "subentry_1" not in coordinator._fallback_retry_at
+
+
+@pytest.mark.asyncio
+async def test_coordinator_fallback_warns_when_names_are_only_ids(hass):
+    """Without a real station name, new IDs cannot be resolved."""
+    subentry = _create_subentry()
+    subentry.data[CONF_DEPARTURE_NAME] = subentry.data[CONF_FROM]
+    entry = _create_entry(subentries={"subentry_1": subentry})
+    coordinator = SncfUpdateCoordinator(hass, entry)
+
+    mock_api = AsyncMock()
+    mock_api.fetch_journeys = AsyncMock(return_value=[])
+    coordinator.api_client = mock_api
+
+    with patch(
+        "custom_components.sncf_trains.coordinator.dt_util.now",
+        return_value=datetime(2026, 11, 24, 8, 0),
+    ):
+        data = await coordinator._async_update_data()
+
+    assert data == {"subentry_1": []}
+    mock_api.search_stations.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_coordinator_backfills_missing_station_names(hass):
+    """Subentries holding only IDs get their station names saved."""
+    subentry = _create_subentry()
+    subentry.data[CONF_DEPARTURE_NAME] = subentry.data[CONF_FROM]  # legacy: ID as name
+    entry = _create_entry(subentries={"subentry_1": subentry})
+    coordinator = SncfUpdateCoordinator(hass, entry)
+
+    mock_api = AsyncMock()
+    mock_api.fetch_station_name = AsyncMock(return_value="Paris Gare de Lyon (Paris)")
+    coordinator.api_client = mock_api
+
+    with patch.object(
+        hass.config_entries, "async_update_subentry"
+    ) as mock_update_subentry:
+        await coordinator._async_backfill_station_names()
+
+    # Only the departure (ID used as name) is looked up; arrival already has a name
+    mock_api.fetch_station_name.assert_awaited_once_with("stop_area:dep")
+    saved = mock_update_subentry.call_args.kwargs["data"]
+    assert saved[CONF_DEPARTURE_NAME] == "Paris Gare de Lyon (Paris)"
+    assert saved[CONF_ARRIVAL_NAME] == "Lyon"
+
+
+@pytest.mark.asyncio
+async def test_coordinator_backfill_ignores_lookup_failures(hass):
+    """A failed name lookup never breaks setup."""
+    subentry = _create_subentry()
+    subentry.data[CONF_ARRIVAL_NAME] = subentry.data[CONF_TO]
+    entry = _create_entry(subentries={"subentry_1": subentry})
+    coordinator = SncfUpdateCoordinator(hass, entry)
+
+    mock_api = AsyncMock()
+    mock_api.fetch_station_name = AsyncMock(return_value=None)
+    coordinator.api_client = mock_api
+
+    with patch.object(
+        hass.config_entries, "async_update_subentry"
+    ) as mock_update_subentry:
+        await coordinator._async_backfill_station_names()
+
+    mock_update_subentry.assert_not_called()
 
 
 def test_coordinator_build_datetime_param(hass):
