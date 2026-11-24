@@ -358,6 +358,40 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
                 _LOGGER.debug("G&C timetable HTTP %s", response.status)
                 return
             timetable = await response.json(content_type=None)
+
+        # Si 0 départ (ex: UIC étranger 0091653280 pour Monaco au lieu de 0087756403),
+        # on cherche l'UIC SNCF via le nom de la gare sur Gares & Connexions.
+        if isinstance(timetable, list) and len(timetable) == 0 and journeys:
+            first_section = next(
+                (s for s in (journeys[0].get("sections") or [])
+                 if isinstance(s, dict) and s.get("type") == "public_transport"),
+                {},
+            )
+            origin = first_section.get("from") or {}
+            station_name = (
+                (origin.get("stop_area") or {}).get("name")
+                if isinstance(origin.get("stop_area"), dict)
+                else None
+            ) or origin.get("name")
+
+            if isinstance(station_name, str) and station_name.strip():
+                alt_uic = await self._lookup_gc_uic_by_name(station_name.strip())
+                if alt_uic and alt_uic != station_uic:
+                    _LOGGER.debug(
+                        "G&C switching UIC %s -> %s for station '%s'",
+                        station_uic,
+                        alt_uic,
+                        station_name,
+                    )
+                    station_uic = alt_uic
+                    alt_url = (
+                        "https://www.garesetconnexions.sncf/schedule-table/"
+                        f"Departures/{station_uic}"
+                    )
+                    async with session.get(alt_url, timeout=ClientTimeout(total=8)) as resp2:
+                        if resp2.status == 200:
+                            timetable = await resp2.json(content_type=None)
+
         if not isinstance(timetable, list):
             _LOGGER.debug(
                 "G&C timetable unexpected format at %s: %s",
