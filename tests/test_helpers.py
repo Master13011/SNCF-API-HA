@@ -45,3 +45,27 @@ def test_two_distinct_trainsets():
     ])
     assert result["train_units"] == 2
     assert result["train_cars"] == 12
+
+
+def test_get_stop_uic_from_codes_new_netex_ids():
+    from custom_components.sncf_trains.helpers import get_stop_uic
+
+    place = {
+        "id": "stop_point:SNC:VSP:FR::LMU:6c1a3b10-cb0a-11e8-8bfa-f784c1c7c611:",
+        "stop_point": {
+            "id": "stop_point:SNC:VSP:FR::LMU:6c1a3b10-cb0a-11e8-8bfa-f784c1c7c611:",
+            "codes": [
+                {"type": "UIC", "value": "87756056"},
+                {"type": "source", "value": "FR::LMU:6c1a3b10:"},
+            ],
+        },
+    }
+    assert get_stop_uic(place) == "87756056"
+
+
+def test_get_stop_uic_legacy_id_and_missing():
+    from custom_components.sncf_trains.helpers import get_stop_uic
+
+    assert get_stop_uic({"id": "stop_point:SNCF:87756056:Train"}) == "87756056"
+    assert get_stop_uic({"id": "stop_point:SNC:VSP:FR::LMU:6c1a3b10-cb0a-11e8:"}) is None
+    assert get_stop_uic(None) is None
