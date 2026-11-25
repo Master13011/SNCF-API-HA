@@ -6,12 +6,21 @@
 
 Suivez les horaires des trains SNCF entre deux gares dans Home Assistant, grâce à l’API officielle [SNCF](https://www.digital.sncf.com/startup/api).
 Départ / arrivée, retards, durée, mode (TER…), tout est intégré dans une interface configurable et traduite.
-Les numéros de voie sont récupérés, quand c'est possible, auprès de Gares & Connexions.
+Les numéros de voie et les informations de composition sont récupérés, quand c'est possible, auprès de Gares & Connexions.
+
+### Nouveautés de la version 2.1.2
+
+- Reconnaissance des locomotives BB 22200, y compris les références SNCF sans séparateur (ex. `0KSRABB22355`).
+- Identification du matériel tracté même lorsque les références des voitures ne sont pas reconnues, sans déduire un nombre de rames ou de voitures non confirmé.
+- Conservation en mémoire des dernières informations connues par circulation (composition, matériel, longueur et voies), avec poursuite des tentatives d’actualisation jusqu’à l’arrivée, y compris après le départ.
+- Invalidation du cache en cas d’annulation détectée et expiration une heure après l’arrivée prévue ou actualisée. Le cache est perdu au redémarrage ou au rechargement de l’intégration.
+- Carte Lovelace : affichage `Train tracté · BB 22200` et masquage des types de matériel inconnus.
 
 > ⚠️ **Limites connues**
 > - Seuls les trajets **sans correspondance** sont conservés.
 > - Les trains supprimés ne sont pas pris en compte.
 > - Les numéros de voie reposent sur un point d'accès non officiel de Gares & Connexions : ils sont fournis « au mieux » et peuvent être absents (`N/A`).
+> - Les informations de composition et de longueur dépendent également des données disponibles. Une locomotive identifiée ne permet pas de déduire le nombre de voitures. Les dernières valeurs connues peuvent être conservées temporairement si la source ne répond plus.
 
 ---
 
@@ -109,7 +118,9 @@ Obtenez votre clé ici : https://numerique.sncf.com/startup/api/ -> Site HS
 - Durée totale (`duration_minutes`)
 - Mode, direction, numéro
 - Voie de départ (`platform`) et d'arrivée (`arrival_platform`) lorsqu'elles sont disponibles
-- Nombre de rames (`train_units`), composition et type de matériel lorsqu'ils sont connus
+- Nombre de rames (`train_units`), composition brute (`train_composition`), famille (`train_family`) et type de matériel (`train_type`) lorsqu'ils sont connus
+- Longueur (`train_length`), nombre de voitures (`train_cars`) et source du nombre de voitures (`train_cars_source`), selon les données disponibles
+- Pour un train tracté identifié, `train_family` vaut `Matériel tracté` ; `train_type` peut valoir `Locomotive BB 22200` sans que le nombre de rames ou de voitures soit connu.
 
 ---
 
@@ -241,6 +252,10 @@ Le `device_id` correspond à l'appareil créé lors de la configuration du traje
 | `update_interval` | `number` | `30` | Rafraîchissement de l'affichage, en secondes (minimum 5). Les anciennes valeurs en millisecondes (≥ 5000) sont converties automatiquement
 | `show_countdown` | `boolean` | `true` | Compte à rebours avant le départ
 | `show_track` | `boolean` | `true` | Barre de progression du train
+| `show_platform` | `boolean` | `true` | Voie de départ |
+| `show_arrival_platform` | `boolean` | `true` | Voie d’arrivée |
+| `show_train_units` | `boolean` | `true` | Nombre de rames lorsqu’il est connu |
+| `show_train_type` | `boolean` | `true` | Type de matériel, par exemple `Train tracté · BB 22200` |
 | `show_duration` | `boolean` | `true` | Durée du trajet
 | `show_status` | `boolean` | `true` | Statut (à l'heure, retard, en circulation, arrivé)
 | `train_emoji` | `string` | `mdi:train` | Icône `mdi:` ou emoji affiché sur la barre
