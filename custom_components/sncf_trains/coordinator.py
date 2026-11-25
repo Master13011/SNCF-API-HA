@@ -4,7 +4,7 @@ import asyncio
 import logging
 import re
 import time
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any
 
 from aiohttp import ClientError, ClientTimeout
@@ -16,6 +16,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from homeassistant.util import dt as dt_util
 
 from .helpers import (
+    disruption_summary,
     format_time,
     get_duration,
     get_stop_uic,
@@ -63,6 +64,7 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
         # n'embarque pas les ``codes`` de l'arrêt (gares frontalières).
         self._uic_cache: dict[str, str | None] = {}
         self._uic_warned: set[str] = set()
+        self._circulation_cache: dict[tuple, dict] = {}
 
         self.update_interval_minutes = entry.options.get(
             CONF_UPDATE_INTERVAL,
@@ -324,21 +326,84 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
         except (TypeError, ValueError, AttributeError):
             return False
 
+    def _circulation_key(self, journey: dict, station_uic: str) -> tuple | None:
+        section = next(
+            (s for s in journey.get("sections", []) if isinstance(s, dict)
+             and s.get("type") == "public_transport"), {},
+        )
+        scheduled = parse_datetime(section.get("base_departure_date_time"))
+        number = get_train_num(journey)
+        arrival = journey.get("arrival_uic") or get_stop_uic(section.get("to"))
+        if not (scheduled and number and arrival):
+            return None
+        return (self._train_number(number), station_uic, str(arrival).zfill(10), scheduled.isoformat())
+
+    @staticmethod
+    def _cancelled(journey: dict) -> bool:
+        return str(journey.get("status", "")).upper() in {
+            "NO_SERVICE", "CANCELLED", "CANCELED"
+        } or disruption_summary(journey)["disruption_effect"] == "NO_SERVICE"
+
     async def _enrich_journeys(self, journeys: list[dict], station_uic: str) -> None:
+        """Refresh live enrichment and retain last known data for each trip."""
+        now = dt_util.now()
+        active = []
+        for journey in journeys:
+            key = self._circulation_key(journey, station_uic)
+            arrival = parse_datetime(journey.get("arrival_date_time"))
+            if self._cancelled(journey):
+                self._circulation_cache.pop(key, None)
+                continue
+            if key and arrival:
+                cached = self._circulation_cache.get(key)
+                if cached and cached["expires"] <= now:
+                    self._circulation_cache.pop(key, None)
+                if arrival > now:
+                    self._circulation_cache.setdefault(key, {"fields": {}})["expires"] = arrival + timedelta(hours=1)
+            if not arrival or arrival > now:
+                active.append(journey)
+        try:
+            if active:
+                await self._fetch_enrichment(active, station_uic)
+        finally:
+            for journey in journeys:
+                key = self._circulation_key(journey, station_uic)
+                cached = self._circulation_cache.get(key)
+                if not cached or self._cancelled(journey):
+                    continue
+                fields = cached["fields"]
+                # Composition is a coherent snapshot: never mix two formations.
+                if journey.get("train_composition"):
+                    for field in ("train_composition", "train_units", "train_family",
+                                  "train_type", "train_cars", "train_cars_source"):
+                        fields[field] = journey.get(field)
+                else:
+                    journey.update({k: v for k, v in fields.items()
+                                    if k.startswith("train_") and k != "train_length"})
+                for field in ("platform_track", "arrival_platform_track", "train_length"):
+                    if journey.get(field) not in (None, "", "N/A"):
+                        fields[field] = journey[field]
+                    elif field in fields:
+                        journey[field] = fields[field]
+
+    async def _fetch_enrichment(self, journeys: list[dict], station_uic: str) -> None:
         """Fetch boarding platforms and, where available, train compositions."""
         session = async_get_clientsession(self.hass)
         url = (
             "https://www.garesetconnexions.sncf/schedule-table/"
             f"Departures/{station_uic}"
         )
-        async with session.get(url, timeout=ClientTimeout(total=8)) as response:
-            if response.status != 200:
-                _LOGGER.debug("G&C timetable HTTP %s", response.status)
-                return
-            timetable = await response.json(content_type=None)
+        timetable = []
+        try:
+            async with session.get(url, timeout=ClientTimeout(total=8)) as response:
+                if response.status == 200:
+                    timetable = await response.json(content_type=None)
+                else:
+                    _LOGGER.debug("G&C timetable HTTP %s", response.status)
+        except (ClientError, asyncio.TimeoutError, ValueError) as err:
+            _LOGGER.debug("G&C timetable unavailable: %s", err)
         if not isinstance(timetable, list):
-            _LOGGER.debug("G&C timetable unexpected format at %s: %s", station_uic, type(timetable).__name__)
-            return
+            timetable = []
         _LOGGER.debug("G&C station %s: %d departures", station_uic, len(timetable))
 
         # A train may pass this station after starting at an earlier station.
@@ -353,7 +418,13 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
         details_cache: dict[tuple[str, str], dict | None] = {}
         for journey in journeys:
             number = self._train_number(get_train_num(journey))
-            candidates = by_number.get(number, [])
+            candidates = list(by_number.get(number, []))
+            cache_key = self._circulation_key(journey, station_uic)
+            cached = self._circulation_cache.get(cache_key)
+            if cached and cached.get("circulation_id"):
+                saved_id = cached["circulation_id"]
+                if not any(item.get("circulationId") == saved_id for item in candidates):
+                    candidates.append({"circulationId": saved_id})
             if not candidates:
                 _LOGGER.debug("G&C no departure match for train %s at station %s", number, station_uic)
                 continue
@@ -401,6 +472,8 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
                     _LOGGER.debug("G&C time mismatch for train %s at station %s", number, station_uic)
                     continue
 
+                if cached is not None:
+                    cached["circulation_id"] = circulation_id
                 stop = next(
                     (s for s in (match_source.get("JourneyStop") or [])
                      if isinstance(s, dict) and str(s.get("uic", "")).zfill(10) == station_uic),
@@ -581,6 +654,12 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
 
     async def _async_update_data(self) -> dict[str, Any]:
         """Récupère les données de l'API SNCF."""
+
+        now = dt_util.now()
+        self._circulation_cache = {
+            key: value for key, value in self._circulation_cache.items()
+            if value["expires"] > now
+        }
 
         if not self.entry.subentries:
             _LOGGER.warning("Pas de subentries configurés")
