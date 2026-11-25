@@ -290,3 +290,48 @@ def get_stop_uic(place: Any) -> str | None:
         if found:
             return found.group(1).lstrip("0")
     return None
+
+
+# ---------------------------------------------------------------------------
+# Config flow : gares uniquement, heures HH:MM
+# ---------------------------------------------------------------------------
+
+
+def is_station_place(place: Any) -> bool:
+    """True si le résultat de recherche est une gare (stop_point / stop_area).
+
+    L'API renvoie aussi des communes (admin:), adresses et lieux d'intérêt,
+    même quand on demande ``type[]=stop_point``.
+    """
+    if not isinstance(place, dict):
+        return False
+    identifier = place.get("id")
+    if not isinstance(identifier, str):
+        return False
+    if place.get("embedded_type") in ("stop_point", "stop_area"):
+        return True
+    return identifier.startswith(("stop_point:", "stop_area:"))
+
+
+def station_label(place: dict) -> str:
+    """Libellé lisible d'une gare : « Nom (Ville) – UIC 8775xxxx »."""
+    name = str(place.get("name") or place.get("id") or "")
+    uic = get_stop_uic(place)
+    return f"{name} – UIC {uic}" if uic else name
+
+
+def parse_hhmm(value: Any) -> tuple[int, int]:
+    """Parse "HH:MM" ou "HH:MM:SS" en (heure, minute)."""
+    parts = str(value).strip().split(":")
+    if len(parts) < 2:
+        raise ValueError(f"Heure invalide : {value!r}")
+    hour, minute = int(parts[0]), int(parts[1])
+    if not (0 <= hour <= 23 and 0 <= minute <= 59):
+        raise ValueError(f"Heure invalide : {value!r}")
+    return hour, minute
+
+
+def normalize_hhmm(value: Any) -> str:
+    """Normalise une heure en "HH:MM" (format stocké dans la configuration)."""
+    hour, minute = parse_hhmm(value)
+    return f"{hour:02d}:{minute:02d}"

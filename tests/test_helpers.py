@@ -117,3 +117,39 @@ def test_get_stop_uic_legacy_ids_with_prefix():
 
     assert get_stop_uic({"id": "stop_point:OCE:SP:Train-87686006"}) == "87686006"
     assert get_stop_uic({"id": "stop_area:SNCF:87391003"}) == "87391003"
+
+
+def test_is_station_place_filters_communes_addresses_and_poi():
+    from custom_components.sncf_trains.helpers import is_station_place
+
+    assert is_station_place({"id": "stop_point:SNC:VSP:FR::LMU:6c1a3b10:", "embedded_type": "stop_point"})
+    assert is_station_place({"id": "stop_area:x"})
+    assert not is_station_place({"id": "admin:fr:06083", "embedded_type": "administrative_region"})
+    assert not is_station_place({"id": "3.04;42.55", "embedded_type": "address"})
+    assert not is_station_place({"id": "poi:osm:1", "embedded_type": "poi"})
+    assert not is_station_place(None)
+
+
+def test_station_label_with_and_without_uic():
+    from custom_components.sncf_trains.helpers import station_label
+
+    with_uic = {
+        "id": "stop_point:SNC:VSP:FR::LMU:69967660-cb0a-11e8-8bfa-f784c1c7c611:",
+        "name": "Menton (Menton)",
+        "stop_point": {"codes": [{"type": "UIC", "value": "87756486"}]},
+    }
+    assert station_label(with_uic) == "Menton (Menton) – UIC 87756486"
+    assert station_label({"id": "stop_area:x", "name": "Lyon"}) == "Lyon"
+
+
+def test_parse_and_normalize_hhmm():
+    import pytest
+    from custom_components.sncf_trains.helpers import normalize_hhmm, parse_hhmm
+
+    assert parse_hhmm("07:05") == (7, 5)
+    assert parse_hhmm("07:05:00") == (7, 5)
+    assert normalize_hhmm("7:05:30") == "07:05"
+    with pytest.raises(ValueError):
+        parse_hhmm("25:00")
+    with pytest.raises(ValueError):
+        parse_hhmm("abc")

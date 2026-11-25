@@ -12,6 +12,7 @@ from homeassistant.config_entries import (
     SubentryFlowResult,
 )
 from homeassistant.core import callback
+from homeassistant.helpers import selector
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .api import SncfApiClient
@@ -37,6 +38,17 @@ from .const import (
     DEFAULT_UPDATE_INTERVAL,
     DOMAIN,
 )
+from .helpers import is_station_place, normalize_hhmm, station_label
+
+
+def _time_selector() -> selector.TimeSelector:
+    """Sélecteur d'heure (pas de saisie libre : plus d'erreur de format)."""
+    return selector.TimeSelector()
+
+
+def _as_time_input(value: str) -> str:
+    """"HH:MM" -> "HH:MM:SS" attendu par le sélecteur d'heure."""
+    return value if value.count(":") >= 2 else f"{value}:00"
 
 
 class SncfTrainsConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
@@ -182,7 +194,11 @@ class TrainSubentryFlowHandler(ConfigSubentryFlow):
             self.api = SncfApiClient(session, api_key)
 
             self.departure_city = user_input[CONF_DEPARTURE_CITY]
-            stations = await self.api.search_stations(self.departure_city)
+            stations = [
+                s
+                for s in (await self.api.search_stations(self.departure_city) or [])
+                if is_station_place(s)
+            ]
             if not stations:
                 errors["base"] = "no_stations"
             else:
@@ -201,10 +217,7 @@ class TrainSubentryFlowHandler(ConfigSubentryFlow):
         if user_input is not None:
             self.departure_station = user_input[CONF_DEPARTURE_STATION]
             return await self.async_step_arrival_city()
-        options = {
-            k: f"{v['name']} ({k.split(':')[-1]})"
-            for k, v in self.departure_options.items()
-        }
+        options = {k: station_label(v) for k, v in self.departure_options.items()}
         return self.async_show_form(
             step_id="departure_station",
             data_schema=vol.Schema(
@@ -219,7 +232,11 @@ class TrainSubentryFlowHandler(ConfigSubentryFlow):
         errors = {}
         if user_input is not None:
             self.arrival_city = user_input[CONF_ARRIVAL_CITY]
-            stations = await self.api.search_stations(self.arrival_city)
+            stations = [
+                s
+                for s in (await self.api.search_stations(self.arrival_city) or [])
+                if is_station_place(s)
+            ]
             if not stations:
                 errors["base"] = "no_stations"
             else:
@@ -238,10 +255,7 @@ class TrainSubentryFlowHandler(ConfigSubentryFlow):
         if user_input is not None:
             self.arrival_station = user_input[CONF_ARRIVAL_STATION]
             return await self.async_step_time_range()
-        options = {
-            k: f"{v['name']} ({k.split(':')[-1]})"
-            for k, v in self.arrival_options.items()
-        }
+        options = {k: station_label(v) for k, v in self.arrival_options.items()}
         return self.async_show_form(
             step_id="arrival_station",
             data_schema=vol.Schema(
@@ -260,6 +274,11 @@ class TrainSubentryFlowHandler(ConfigSubentryFlow):
             arr_name = self.arrival_options.get(self.arrival_station, {}).get(
                 "name", self.arrival_station
             )
+            user_input = {
+                **user_input,
+                CONF_TIME_START: normalize_hhmm(user_input[CONF_TIME_START]),
+                CONF_TIME_END: normalize_hhmm(user_input[CONF_TIME_END]),
+            }
             time_start = user_input[CONF_TIME_START]
             time_end = user_input[CONF_TIME_END]
             unique_id = f"{self.departure_station}_{self.arrival_station}_{time_start}_{time_end}"
@@ -283,8 +302,12 @@ class TrainSubentryFlowHandler(ConfigSubentryFlow):
             step_id="time_range",
             data_schema=vol.Schema(
                 {
-                    vol.Required(CONF_TIME_START, default=DEFAULT_TIME_START): str,
-                    vol.Required(CONF_TIME_END, default=DEFAULT_TIME_END): str,
+                    vol.Required(
+                        CONF_TIME_START, default=_as_time_input(DEFAULT_TIME_START)
+                    ): _time_selector(),
+                    vol.Required(
+                        CONF_TIME_END, default=_as_time_input(DEFAULT_TIME_END)
+                    ): _time_selector(),
                     vol.Required(CONF_TRAIN_COUNT, default=DEFAULT_TRAIN_COUNT): int,
                 }
             ),
@@ -299,6 +322,8 @@ class TrainSubentryFlowHandler(ConfigSubentryFlow):
         if user_input is not None:
             data = config_subentry.data.copy()
             data.update(user_input)
+            data[CONF_TIME_START] = normalize_hhmm(data[CONF_TIME_START])
+            data[CONF_TIME_END] = normalize_hhmm(data[CONF_TIME_END])
 
             return self.async_update_and_abort(
                 self._get_entry(),
@@ -309,8 +334,12 @@ class TrainSubentryFlowHandler(ConfigSubentryFlow):
 
         DATA_SCHEMA = vol.Schema(
             {
-                vol.Required(CONF_TIME_START, default=DEFAULT_TIME_START): str,
-                vol.Required(CONF_TIME_END, default=DEFAULT_TIME_END): str,
+                vol.Required(
+                    CONF_TIME_START, default=_as_time_input(DEFAULT_TIME_START)
+                ): _time_selector(),
+                vol.Required(
+                    CONF_TIME_END, default=_as_time_input(DEFAULT_TIME_END)
+                ): _time_selector(),
                 vol.Required(CONF_TRAIN_COUNT, default=DEFAULT_TRAIN_COUNT): int,
             }
         )
@@ -318,7 +347,16 @@ class TrainSubentryFlowHandler(ConfigSubentryFlow):
         return self.async_show_form(
             step_id="reconfigure",
             data_schema=self.add_suggested_values_to_schema(
-                DATA_SCHEMA, config_subentry.data
+                DATA_SCHEMA,
+                {
+                    **config_subentry.data,
+                    CONF_TIME_START: _as_time_input(
+                        config_subentry.data.get(CONF_TIME_START, DEFAULT_TIME_START)
+                    ),
+                    CONF_TIME_END: _as_time_input(
+                        config_subentry.data.get(CONF_TIME_END, DEFAULT_TIME_END)
+                    ),
+                },
             ),
         )
 

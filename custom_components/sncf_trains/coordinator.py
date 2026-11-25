@@ -21,6 +21,7 @@ from .helpers import (
     get_stop_uic,
     get_train_num,
     parse_datetime,
+    parse_hhmm,
     stop_identifiers,
 )
 from .rolling_stock import analyser_composition
@@ -165,8 +166,8 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
         """Construit le paramètre datetime pour l'API."""
         now = dt_util.now()
 
-        h_start, m_start = map(int, time_start.split(":"))
-        h_end, m_end = map(int, time_end.split(":"))
+        h_start, m_start = parse_hhmm(time_start)
+        h_end, m_end = parse_hhmm(time_end)
 
         dt_start = now.replace(
             hour=h_start,
@@ -195,8 +196,8 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
         """Ajuste la fréquence selon la plage horaire."""
         now = dt_util.now()
 
-        h_start, m_start = map(int, time_start.split(":"))
-        h_end, m_end = map(int, time_end.split(":"))
+        h_start, m_start = parse_hhmm(time_start)
+        h_end, m_end = parse_hhmm(time_end)
 
         start = now.replace(
             hour=h_start,
