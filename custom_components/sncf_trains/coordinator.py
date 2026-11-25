@@ -61,6 +61,7 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
         # stop_id -> UIC (ou None) résolu via l'API quand la réponse du trajet
         # n'embarque pas les ``codes`` de l'arrêt (gares frontalières).
         self._uic_cache: dict[str, str | None] = {}
+        self._uic_warned: set[str] = set()
 
         self.update_interval_minutes = entry.options.get(
             CONF_UPDATE_INTERVAL,
@@ -272,6 +273,18 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
                     self._uic_cache[identifier] = None
             if self._uic_cache[identifier]:
                 return self._uic_cache[identifier]
+        # Une seule alerte par gare, pour pouvoir l'ajouter à la table de repli
+        # (_UIC_FALLBACK_BY_NETEX dans helpers.py).
+        key = next(iter(stop_identifiers(place)), None)
+        if key and key not in self._uic_warned:
+            self._uic_warned.add(key)
+            _LOGGER.warning(
+                "Aucun UIC pour la gare '%s' (id=%s) : quai et composition "
+                "indisponibles. UIC connu ? Ajoutez-le dans "
+                "_UIC_FALLBACK_BY_NETEX (helpers.py).",
+                (place or {}).get("name") if isinstance(place, dict) else None,
+                key,
+            )
         return None
 
     @staticmethod
@@ -400,6 +413,16 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
                     # L'arrêt d'arrivée est la destination de la section train,
                     # pas forcément le terminus de la circulation.
                     arrival_uic = journey.get("arrival_uic")
+                    if not arrival_uic:
+                        # Appel direct (hors boucle principale) : on le déduit de
+                        # la destination de la section train.
+                        section = next(
+                            (part for part in (journey.get("sections") or [])
+                             if isinstance(part, dict)
+                             and part.get("type") == "public_transport"),
+                            None,
+                        )
+                        arrival_uic = get_stop_uic((section or {}).get("to"))
                     arrival_uic = str(arrival_uic).zfill(10) if arrival_uic else None
                     if arrival_uic:
                         arrival_stop = next(

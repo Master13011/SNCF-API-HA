@@ -1,6 +1,7 @@
 """Helpers for component."""
 
 import re
+import unicodedata
 from datetime import datetime
 from typing import Any
 
@@ -184,9 +185,10 @@ def disruption_summary(journey: dict) -> dict:
 # ---------------------------------------------------------------------------
 
 _UIC_CODE_TYPES = {"uic", "uic8", "uic_code"}
-# Ni lettre, chiffre ni tiret autour : évite de lire le début d'un UUID NeTEx
-# (ex. "91653280-cb0a-...") comme un UIC.
-_UIC_IN_ID = re.compile(r"(?<![0-9A-Za-z-])([0-9]{8}|00[0-9]{8})(?![0-9A-Za-z-])")
+# Ni lettre ni chiffre avant, ni lettre/chiffre/tiret après : accepte les anciens
+# IDs ("stop_area:SNCF:87686006", "...Train-87686006") mais pas le début d'un UUID
+# NeTEx ("91653280-cb0a-...", suivi d'un tiret).
+_UIC_IN_ID = re.compile(r"(?<![0-9A-Za-z])([0-9]{8}|00[0-9]{8})(?![0-9A-Za-z-])")
 
 
 def _normalize_uic(value: Any) -> str | None:
@@ -243,6 +245,15 @@ _UIC_FALLBACK_BY_NAME = {
 }
 
 
+def _normalize_name(name: str) -> str:
+    """Normalize a station name: no accents, case, dots, hyphens or '(City)'."""
+    text = unicodedata.normalize("NFKD", name)
+    text = "".join(c for c in text if not unicodedata.combining(c))
+    text = re.sub(r"\s*\(.*?\)\s*", " ", text)
+    text = text.replace("-", " ").replace(".", " ")
+    return " ".join(text.casefold().split())
+
+
 def _fallback_uic(place: dict) -> str | None:
     """Return a known UIC for stations that carry none in the API."""
     for identifier in stop_identifiers(place):
@@ -252,8 +263,7 @@ def _fallback_uic(place: dict) -> str | None:
     for obj in (place.get("stop_point"), place):
         name = obj.get("name") if isinstance(obj, dict) else None
         if isinstance(name, str):
-            key = re.sub(r"\s*\(.*?\)\s*", " ", name).replace("-", " ")
-            key = " ".join(key.casefold().split())
+            key = _normalize_name(name)
             if key in _UIC_FALLBACK_BY_NAME:
                 return _UIC_FALLBACK_BY_NAME[key]
     return None
