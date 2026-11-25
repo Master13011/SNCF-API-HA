@@ -802,3 +802,71 @@ def test_coordinator_adjust_update_interval_crosses_midnight(hass):
         )
 
     assert interval == timedelta(minutes=5)
+
+
+@pytest.mark.asyncio
+async def test_enrichment_survives_departure_and_refreshes_arrival_track(hass):
+    coordinator = SncfUpdateCoordinator(hass, _create_entry())
+    from homeassistant.util import dt as dt_util
+
+    now = dt_util.parse_datetime("2026-11-25T16:25:00+00:00")
+    departure = "2026-11-25T16:16:00+00:00"
+    arrival = "2026-11-25T16:51:00+00:00"
+
+    def journey():
+        return {
+            "trip_short_name": "17629",
+            "arrival_uic": "87723478",
+            "departure_date_time": departure,
+            "arrival_date_time": arrival,
+            "sections": [{"type": "public_transport",
+                          "base_departure_date_time": departure}],
+        }
+
+    def response(payload, status=200):
+        context = MagicMock()
+        context.__aenter__.return_value.status = status
+        context.__aenter__.return_value.json = AsyncMock(return_value=payload)
+        return context
+
+    item = {"trainNumber": "17629", "circulationId": "test-course",
+            "scheduledTime": departure}
+    detail = {
+        "scheduledTime": departure,
+        "JourneyStop": [
+            {"uic": "0087723197", "scheduledTime": departure,
+             "platform": {"track": "J"}},
+            {"uic": "0087723478", "scheduledTime": arrival,
+             "platform": {"track": "A"}},
+        ],
+        "composition": {"element": [
+            {"numeroAffectation": "0KSRA-Z24633"},
+            {"numeroAffectation": "0KSRA-Z24757"},
+        ]},
+    }
+    session = MagicMock()
+    session.get.side_effect = [
+        response([item]), response([{**detail, "JourneyStop": detail["JourneyStop"][:1]}]),
+        response([]), response([detail]),
+        response([], 503), response([], 503),
+    ]
+    with (
+        patch("custom_components.sncf_trains.coordinator.dt_util.now", return_value=now),
+        patch("custom_components.sncf_trains.coordinator.async_get_clientsession", return_value=session),
+    ):
+        first = journey()
+        await coordinator._enrich_journeys([first], "0087723197")
+        assert first["train_units"] == 2
+        second = journey()
+        await coordinator._enrich_journeys([second], "0087723197")
+        assert second["arrival_platform_track"] == "A"
+        assert "test-course" in session.get.call_args.args[0]
+        third = journey()
+        await coordinator._enrich_journeys([third], "0087723197")
+        assert third["train_units"] == 2
+        assert third["platform_track"] == "J"
+        assert third["arrival_platform_track"] == "A"
+        cancelled = {**journey(), "status": "NO_SERVICE"}
+        await coordinator._enrich_journeys([cancelled], "0087723197")
+        assert not coordinator._circulation_cache
+        assert "train_units" not in cancelled
