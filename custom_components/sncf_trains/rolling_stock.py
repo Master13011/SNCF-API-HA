@@ -92,6 +92,8 @@ def identifier_materiel(reference: str) -> dict[str, Any] | None:
     raw = str(reference).upper().strip()
     # API references can contain an operator prefix, e.g. 0KSRA-Z24595.
     raw = raw.rsplit("-", 1)[-1]
+    # Observed SNCF locomotive references may omit the separator.
+    raw = re.sub(r"^0KSRABB(?=[0-9]{5}$)", "BB", raw)
     for prefix, (nom, caisses) in TGV_EXPLICITES.items():
         if raw.startswith(prefix):
             return {
@@ -153,11 +155,21 @@ def analyser_composition(elements: list) -> dict[str, Any]:
         if complet and all(m["famille"] != "Locomotive" for m in materiels)
         else None
     )
+    # Identify hauled formations even when the remorqued stock is unknown.
+    locomotives = [m for m in connus if m["famille"] == "Locomotive"]
+    hauled = bool(locomotives) and all(m["famille"] == "Locomotive" for m in connus)
+    locomotive_types = {m["type"] for m in locomotives}
     return {
         "train_units": trainsets,
         "train_composition": rames,
-        "train_family": next(iter(familles)) if complet and len(familles) == 1 else None,
-        "train_type": next(iter(types)) if complet and len(types) == 1 else None,
+        "train_family": (
+            "Matériel tracté" if hauled and len(elements) > 1
+            else next(iter(familles)) if complet and len(familles) == 1 else None
+        ),
+        "train_type": (
+            next(iter(locomotive_types)) if hauled and len(locomotive_types) == 1
+            else next(iter(types)) if complet and len(types) == 1 else None
+        ),
         "train_cars": voitures,
         "train_cars_source": "catalogue" if voitures is not None else "inconnue",
     }
