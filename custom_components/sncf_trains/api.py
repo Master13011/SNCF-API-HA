@@ -106,6 +106,9 @@ class SncfApiClient:
         params_raw: dict[str, object] = {
             "q": query,
             "type[]": "stop_point",
+            # L'API peut ignorer type[] : on demande plus de résultats pour que
+            # les gares ne soient pas noyées parmi communes/adresses.
+            "count": 25,
         }
         params: Mapping[str, str] = {k: str(v) for k, v in params_raw.items()}
         headers = {"Authorization": f"Basic {self._token}"}
