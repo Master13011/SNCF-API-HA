@@ -18,6 +18,7 @@ from homeassistant.util import dt as dt_util
 from .helpers import format_time, get_duration, get_train_num, parse_datetime
 from .rolling_stock import analyser_composition
 from .api import SncfApiClient
+from .correspondances import filtrer_uic_gare  # Importation du nouveau fichier de mapping
 from .const import (
     CONF_API_KEY,
     CONF_FROM,
@@ -102,14 +103,7 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
         )
 
     async def _async_backfill_station_names(self) -> None:
-        """Complète les noms de gares manquants des trajets déjà configurés.
-
-        Les trajets migrés depuis d'anciennes versions peuvent n'avoir que des
-        identifiants, ce qui empêche de retrouver les nouveaux IDs NeTEx.
-        Tant que les anciens IDs sont reconnus par l'API, on récupère le nom
-        et on le sauvegarde dans la sous-entrée. Meilleur effort : toute erreur
-        est ignorée et sera retentée au prochain démarrage.
-        """
+        """Complète les noms de gares manquants des trajets déjà configurés."""
         if self.api_client is None:
             return
 
@@ -129,7 +123,7 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
                     name = await self.api_client.fetch_station_name(station_id)
                 except ConfigEntryAuthFailed:
                     raise
-                except Exception as err:  # noqa: BLE001 - meilleur effort
+                except Exception as err:  # noqa: BLE001
                     _LOGGER.debug(
                         "Nom de gare introuvable pour %s : %s", station_id, err
                     )
@@ -147,7 +141,7 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
                         subentry.title,
                         changes,
                     )
-                except Exception as err:  # noqa: BLE001 - meilleur effort
+                except Exception as err:  # noqa: BLE001
                     _LOGGER.warning(
                         "Impossible d'enregistrer les noms de gares : %s", err
                     )
@@ -238,7 +232,7 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
 
     @staticmethod
     def _train_number(value: Any) -> str:
-        """Normalize train numbers without changing their significant digits."""
+        """Normalize train numbers."""
         return "".join(str(value or "").split()).lstrip("0") or "0"
 
     @staticmethod
@@ -273,39 +267,14 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
             return False
 
     async def _resolve_uic_from_place(self, place: dict) -> str:
-        """Extrait le code UIC (10 chiffres) depuis Navitia (codes ou ID) ou via le nom de la gare."""
-        if not isinstance(place, dict):
-            return ""
+        """Extrait l'UIC en appelant la logique déportée dans le module correspondances."""
+        # On délègue le travail au fichier externe correspondances.py
+        uic_resolved = filtrer_uic_gare(place)
+        
+        if uic_resolved:
+            return uic_resolved
 
-        # 1. Recherche dans le nouveau format NeTEx (champ 'codes')
-        for target in (place, place.get("stop_point"), place.get("stop_area")):
-            if not isinstance(target, dict):
-                continue
-            for code in target.get("codes") or []:
-                if isinstance(code, dict) and str(code.get("type", "")).lower() in ("uic", "source"):
-                    val = str(code.get("value", "")).strip()
-                    if val.isdigit() and len(val) in (8, 10):
-                        return val.zfill(10)
-
-        # 2. Repli sur l'ancien format (regex dans les IDs)
-        identifiers = [
-            place.get("id"),
-            (place.get("stop_point") or {}).get("id")
-            if isinstance(place.get("stop_point"), dict) else None,
-            (place.get("stop_area") or {}).get("id")
-            if isinstance(place.get("stop_area"), dict) else None,
-        ]
-        for identifier in identifiers:
-            if not isinstance(identifier, str):
-                continue
-            match = re.search(
-                r"(?<![0-9])([0-9]{8}|00[0-9]{8})(?![0-9])",
-                identifier,
-            )
-            if match:
-                return match.group(1).zfill(10)
-
-        # 3. Secours par nom de gare via l'API Gares & Connexions
+        # 3. Secours historique par nom de gare via l'API Gares & Connexions
         station_name = (
             (place.get("stop_area") or {}).get("name")
             if isinstance(place.get("stop_area"), dict)
@@ -333,7 +302,7 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
                         wanted = self._normalize_station_name(station_name)
                         best = next(
                             (r for r in results if self._normalize_station_name(r.get("name")) == wanted),
-                            results[0],
+                            results,
                         )
                         uic = str(best.get("uic") or best.get("codeUic") or "").strip()
                         if uic.isdigit():
@@ -359,11 +328,9 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
                 return
             timetable = await response.json(content_type=None)
 
-        # Si 0 départ (ex: UIC étranger 0091653280 pour Monaco au lieu de 0087756403),
-        # on cherche l'UIC SNCF via le nom de la gare sur Gares & Connexions.
         if isinstance(timetable, list) and len(timetable) == 0 and journeys:
             first_section = next(
-                (s for s in (journeys[0].get("sections") or [])
+                (s for s in (journeys.get("sections") or [])
                  if isinstance(s, dict) and s.get("type") == "public_transport"),
                 {},
             )
@@ -401,7 +368,6 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
             return
         _LOGGER.debug("G&C station %s: %d departures", station_uic, len(timetable))
 
-        # A train may pass this station after starting at an earlier station.
         by_number: dict[str, list[dict]] = {}
         for item in timetable:
             if isinstance(item, dict):
@@ -409,7 +375,6 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
                     self._train_number(item.get("trainNumber")), []
                 ).append(item)
 
-        # Reuse course results for repeated journeys within the same refresh.
         details_cache: dict[tuple[str, str], dict | None] = {}
         for journey in journeys:
             number = self._train_number(get_train_num(journey))
@@ -422,7 +387,6 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
                 )
                 continue
 
-            # Timetable items may omit JourneyStop; fetch details before matching.
             for item in candidates:
                 circulation_id = item.get("circulationId")
                 if not isinstance(circulation_id, str) or not circulation_id:
@@ -451,10 +415,10 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
                             if response.status == 200:
                                 payload = await response.json(content_type=None)
                                 details_cache[key] = (
-                                    payload[0]
+                                    payload
                                     if isinstance(payload, list)
                                     and payload
-                                    and isinstance(payload[0], dict)
+                                    and isinstance(payload, dict)
                                     else None
                                 )
                             else:
@@ -483,8 +447,6 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
                     journey["platform_track"] = str(platform["track"])
 
                 if detail:
-                    # The arrival stop is the destination of the train section,
-                    # not necessarily the final terminus of the circulation.
                     section = next(
                         (part for part in (journey.get("sections") or [])
                          if isinstance(part, dict)
@@ -518,7 +480,7 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
 
     @staticmethod
     def _normalize_station_name(value: Any) -> str:
-        """Normalize station labels for matching API place search results."""
+        """Normalize station labels."""
         import unicodedata
 
         text = unicodedata.normalize("NFKD", str(value or ""))
@@ -532,7 +494,7 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
     async def _resolve_station_ids(
         self, departure_name: str, arrival_name: str
     ) -> tuple[str, str] | None:
-        """Resolve saved station names to the current SNCF repository IDs."""
+        """Resolve saved station names."""
         cache_key = (departure_name, arrival_name)
         if cache_key in self._netex_station_ids:
             return self._netex_station_ids[cache_key]
@@ -561,9 +523,6 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
                 ),
                 None,
             )
-            # The search endpoint can return a station label with a suffix
-            # (e.g. "Paris (toutes gares)"). Never silently select an
-            # unrelated result: require an exact normalized name match.
             if exact is None:
                 _LOGGER.warning(
                     "Aucun résultat exact pour la gare '%s' dans le nouveau référentiel",
@@ -572,22 +531,18 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
                 return None
             resolved.append(exact["id"])
 
-        result = (resolved[0], resolved[1])
+        result = (resolved, resolved)
         self._netex_station_ids[cache_key] = result
         return result
 
     def _fallback_allowed(self, subentry_id: str) -> bool:
-        """Indique si le repli (horaires théoriques / nouveaux IDs) est permis."""
+        """Indique si le repli est permis."""
         return time.monotonic() >= self._fallback_retry_at.get(subentry_id, 0.0)
 
     async def _async_fallback_journeys(
         self, entry: Any, departure: str, arrival: str, datetime_str: str
     ) -> tuple[list | None, tuple[str, str] | None]:
-        """Repli : horaires théoriques, puis résolution des nouveaux IDs.
-
-        Retourne (trajets, nouveaux_ids). nouveaux_ids n'est renseigné que si
-        les trajets ont été obtenus avec des IDs différents de ceux enregistrés.
-        """
+        """Repli : horaires théoriques, puis résolution des nouveaux IDs."""
         journeys = None
         try:
             journeys = await self.api_client.fetch_journeys(
@@ -625,12 +580,12 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
         )
         try:
             journeys = await self.api_client.fetch_journeys(
-                new_ids[0], new_ids[1], datetime_str, count=10
+                new_ids, new_ids, datetime_str, count=10
             )
             if not journeys:
                 journeys = await self.api_client.fetch_journeys(
-                    new_ids[0],
-                    new_ids[1],
+                    new_ids,
+                    new_ids,
                     datetime_str,
                     count=10,
                     data_freshness="base_schedule",
@@ -641,17 +596,17 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
         return journeys, new_ids if journeys else None
 
     def _persist_station_ids(self, subentry: Any, new_ids: tuple[str, str]) -> None:
-        """Enregistre les nouveaux IDs dans la sous-entrée (meilleur effort)."""
+        """Enregistre les nouveaux IDs dans la sous-entrée."""
         try:
             self.hass.config_entries.async_update_subentry(
                 self.entry,
                 subentry,
-                data={**subentry.data, CONF_FROM: new_ids[0], CONF_TO: new_ids[1]},
+                data={**subentry.data, CONF_FROM: new_ids, CONF_TO: new_ids},
             )
             _LOGGER.info(
                 "Identifiants SNCF mis à jour pour '%s'", subentry.title
             )
-        except Exception as err:  # noqa: BLE001 - ne doit pas casser la mise à jour
+        except Exception as err:  # noqa: BLE001
             _LOGGER.warning(
                 "Impossible d'enregistrer les nouveaux identifiants : %s", err
             )
@@ -695,9 +650,6 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
 
             journeys = None
 
-            # ---------------------------------------------------------
-            # Appel API avec retry
-            # ---------------------------------------------------------
             for attempt in range(1, max_retries + 1):
                 try:
                     journeys = await self.api_client.fetch_journeys(
@@ -726,13 +678,6 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
                 if attempt < max_retries:
                     await asyncio.sleep(retry_delay)
 
-            # ---------------------------------------------------------
-            # Compatibilité avec le nouveau référentiel SNCF (NeTEx/SIRI,
-            # 24/11/2026) : si rien n'est reçu, on demande les horaires
-            # théoriques, puis on tente de retrouver les nouveaux IDs à partir
-            # des noms de gares. Un échec complet suspend le repli pendant
-            # FALLBACK_RETRY_SECONDS pour économiser le quota.
-            # ---------------------------------------------------------
             if not journeys and self._fallback_allowed(subentry_id):
                 journeys, new_ids = await self._async_fallback_journeys(
                     entry, departure, arrival, datetime_str
@@ -746,9 +691,6 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
                         time.monotonic() + FALLBACK_RETRY_SECONDS
                     )
 
-            # ---------------------------------------------------------
-            # Vérification de la réponse API
-            # ---------------------------------------------------------
             if journeys is None or not isinstance(journeys, list):
                 _LOGGER.error(
                     "Aucune donnée reçue de l'API SNCF pour le trajet '%s'",
@@ -762,22 +704,6 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
                 len(journeys),
             )
 
-            # ---------------------------------------------------------
-            # Filtrage des trajets
-            #
-            # On ne teste plus le nombre de sections.
-            #
-            # Un trajet direct peut maintenant être représenté par :
-            #
-            #   crow_fly
-            #   public_transport
-            #   crow_fly
-            #
-            # tout en ayant nb_transfers = 0.
-            #
-            # nb_transfers est donc le critère approprié pour
-            # éliminer les trajets avec correspondance.
-            # ---------------------------------------------------------
             filtered_journeys = []
 
             for journey in journeys:
@@ -788,14 +714,11 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
                     filtered_journeys.append(journey)
 
             _LOGGER.debug(
-                "Trajet '%s' : %d journey(s) conservé(s) après filtrage "
-                "(sans correspondance)",
+                "Trajet '%s' : %d journey(s) conservé(s) après filtrage",
                 entry.title,
                 len(filtered_journeys),
             )
 
-            # Resolve the actual boarding station from Navitia public_transport
-            # sections, not from the configured origin (which may be admin:fr).
             if filtered_journeys:
                 by_station: dict[str, list[dict]] = {}
                 for journey in filtered_journeys:
@@ -807,34 +730,15 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
                         None,
                     )
                     if not section:
-                        _LOGGER.debug(
-                            "G&C: train %s has no public_transport section; section types=%s",
-                            get_train_num(journey),
-                            [part.get("type") for part in sections if isinstance(part, dict)],
-                        )
                         continue
                     origin = section.get("from") or {}
                     if not isinstance(origin, dict):
-                        _LOGGER.debug(
-                            "G&C: invalid boarding stop for train %s",
-                            get_train_num(journey),
-                        )
                         continue
 
                     station_uic = await self._resolve_uic_from_place(origin)
                     if station_uic:
                         by_station.setdefault(station_uic, []).append(journey)
-                    else:
-                        _LOGGER.debug(
-                            "G&C: no UIC in boarding stop for train %s; origin=%s",
-                            get_train_num(journey),
-                            origin.get("id"),
-                        )
-                _LOGGER.debug(
-                    "G&C: resolved %d boarding stations from %d journeys",
-                    len(by_station),
-                    len(filtered_journeys),
-                )
+                
                 for station_uic, station_journeys in by_station.items():
                     try:
                         await self._enrich_journeys(station_journeys, station_uic)
@@ -847,21 +751,12 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
 
             trains[subentry_id] = filtered_journeys
 
-        # -------------------------------------------------------------
-        # Mise à jour de l'intervalle
-        # -------------------------------------------------------------
         if update_intervals:
             new_interval = min(update_intervals)
 
             if self.update_interval != new_interval:
                 self.update_interval = new_interval
 
-                _LOGGER.debug(
-                    "Coordinator update interval set to %s minutes",
-                    self.update_interval.total_seconds() / 60,
-                )
-
-        # Sauvegarde des IDs résolus (déclenche un rechargement de l'intégration).
         for subentry, new_ids in pending_id_updates:
             self._persist_station_ids(subentry, new_ids)
 
