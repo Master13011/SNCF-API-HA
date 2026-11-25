@@ -274,6 +274,11 @@ Le `device_id` correspond à l'appareil créé lors de la configuration du traje
 
 ---
 
+## Exemple de requete
+
+```https://api.sncf.com/v1/coverage/sncf/journeys?from=stop_area:SNC:FR::LMU:6c1a3b10-cb0a-11e8-8bfa-f784c1c7c611:&to=stop_area:SNC:FR::LMU:69967660-cb0a-11e8-8bfa-f784c1c7c611:&datetime=20261125T102400&data_freshness=realtime&datetime_represents=departure&min_transfers=0&max_transfers=0```
+
+
 ## 🛠 Développement
 
 Compatible avec Home Assistant `2025.8+`.
