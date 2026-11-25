@@ -316,6 +316,8 @@ class SncfTrainSensor(
             "has_delay": delay > 0,
             "departure_stop_id": self.departure,
             "arrival_stop_id": self.arrival,
+            "departure_uic": journey.get("departure_uic"),
+            "arrival_uic": journey.get("arrival_uic"),
             "direction": display_informations.get(
                 "direction",
                 "",

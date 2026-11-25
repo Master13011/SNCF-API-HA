@@ -5,7 +5,7 @@ from typing import List, Optional, Mapping
 from homeassistant.exceptions import ConfigEntryAuthFailed
 import asyncio
 
-from .helpers import attach_disruptions
+from .helpers import attach_disruptions, uic_from_codes
 
 API_BASE = "https://api.sncf.com"
 _LOGGER = logging.getLogger(__name__)
@@ -169,3 +169,45 @@ class SncfApiClient:
             None,
         ) or next((r.get("name") for r in regions if isinstance(r, dict) and r.get("name")), None)
         return f"{name} ({city})" if city else name
+
+    async def fetch_stop_uic(self, stop_id: str) -> Optional[str]:
+        """Return the UIC code of a stop (stop_point or stop_area), if known.
+
+        Used when the journey response does not embed the ``codes`` of a stop
+        (this can happen for border stations such as Monaco).
+        """
+        if stop_id.startswith("stop_area:"):
+            url = f"{API_BASE}/v1/coverage/sncf/stop_areas/{stop_id}"
+            key = "stop_areas"
+        elif stop_id.startswith("stop_point:"):
+            url = f"{API_BASE}/v1/coverage/sncf/stop_points/{stop_id}"
+            key = "stop_points"
+        else:
+            return None
+
+        headers = {"Authorization": f"Basic {self._token}"}
+        try:
+            async with self._session.get(
+                url,
+                headers=headers,
+                timeout=ClientTimeout(total=self._timeout),
+            ) as resp:
+                if resp.status == 401:
+                    raise ConfigEntryAuthFailed("Unauthorized: check your API key.")
+                if resp.status in (404, 429):
+                    return None
+                resp.raise_for_status()
+                data = await resp.json()
+        except (ClientError, asyncio.TimeoutError) as err:
+            _LOGGER.debug("Network error fetching UIC of %s: %s", stop_id, err)
+            return None
+
+        items = data.get(key) or []
+        if not items or not isinstance(items[0], dict):
+            return None
+        stop = items[0]
+        uic = uic_from_codes(stop.get("codes"))
+        if uic:
+            return uic
+        area = stop.get("stop_area")
+        return uic_from_codes(area.get("codes")) if isinstance(area, dict) else None

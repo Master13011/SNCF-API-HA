@@ -15,7 +15,14 @@ from homeassistant.helpers.aiohttp_client import async_get_clientsession
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
-from .helpers import format_time, get_duration, get_train_num, parse_datetime
+from .helpers import (
+    format_time,
+    get_duration,
+    get_stop_uic,
+    get_train_num,
+    parse_datetime,
+    stop_identifiers,
+)
 from .rolling_stock import analyser_composition
 from .api import SncfApiClient
 from .const import (
@@ -51,6 +58,10 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
         self._netex_station_ids: dict[tuple[str, str], tuple[str, str]] = {}
         # subentry_id -> instant (time.monotonic) avant lequel le repli est suspendu
         self._fallback_retry_at: dict[str, float] = {}
+        # stop_id -> UIC (ou None) résolu via l'API quand la réponse du trajet
+        # n'embarque pas les ``codes`` de l'arrêt (gares frontalières).
+        self._uic_cache: dict[str, str | None] = {}
+        self._uic_warned: set[str] = set()
 
         self.update_interval_minutes = entry.options.get(
             CONF_UPDATE_INTERVAL,
@@ -235,6 +246,47 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
         return new_interval
 
 
+    async def _async_stop_uic(self, place: Any) -> str | None:
+        """Return the UIC (8 digits) of a section ``from``/``to`` place.
+
+        1. ``codes`` embedded in the journey response (new NeTEx referential);
+        2. legacy IDs carrying the UIC;
+        3. lookup of the stop through the API (cached).
+        """
+        uic = get_stop_uic(place)
+        if uic:
+            return uic
+        if self.api_client is None:
+            return None
+        for identifier in stop_identifiers(place):
+            if not identifier.startswith(("stop_point:", "stop_area:")):
+                continue
+            if identifier not in self._uic_cache:
+                try:
+                    self._uic_cache[identifier] = await self.api_client.fetch_stop_uic(
+                        identifier
+                    )
+                except ConfigEntryAuthFailed:
+                    raise
+                except Exception as err:  # noqa: BLE001 - meilleur effort
+                    _LOGGER.debug("UIC lookup failed for %s: %s", identifier, err)
+                    self._uic_cache[identifier] = None
+            if self._uic_cache[identifier]:
+                return self._uic_cache[identifier]
+        # Une seule alerte par gare, pour pouvoir l'ajouter à la table de repli
+        # (_UIC_FALLBACK_BY_NETEX dans helpers.py).
+        key = next(iter(stop_identifiers(place)), None)
+        if key and key not in self._uic_warned:
+            self._uic_warned.add(key)
+            _LOGGER.warning(
+                "Aucun UIC pour la gare '%s' (id=%s) : quai et composition "
+                "indisponibles. UIC connu ? Ajoutez-le dans "
+                "_UIC_FALLBACK_BY_NETEX (helpers.py).",
+                (place or {}).get("name") if isinstance(place, dict) else None,
+                key,
+            )
+        return None
+
     @staticmethod
     def _train_number(value: Any) -> str:
         """Normalize train numbers without changing their significant digits."""
@@ -358,44 +410,30 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
                     journey["platform_track"] = str(platform["track"])
 
                 if detail:
-                    # The arrival stop is the destination of the train section,
-                    # not necessarily the final terminus of the circulation.
-                    section = next(
-                        (part for part in (journey.get("sections") or [])
-                         if isinstance(part, dict)
-                         and part.get("type") == "public_transport"),
-                        None,
-                    )
-                    destination = (section or {}).get("to") or {}
-                    if isinstance(destination, dict):
-                        destination_ids = [
-                            destination.get("id"),
-                            (destination.get("stop_point") or {}).get("id")
-                            if isinstance(destination.get("stop_point"), dict) else None,
-                            (destination.get("stop_area") or {}).get("id")
-                            if isinstance(destination.get("stop_area"), dict) else None,
-                        ]
-                        arrival_uic = None
-                        for identifier in destination_ids:
-                            if not isinstance(identifier, str):
-                                continue
-                            found = re.search(
-                                r"(?<![0-9])([0-9]{8}|00[0-9]{8})(?![0-9])",
-                                identifier,
-                            )
-                            if found:
-                                arrival_uic = found.group(1).zfill(10)
-                                break
-                        if arrival_uic:
-                            arrival_stop = next(
-                                (stop for stop in (detail.get("JourneyStop") or [])
-                                 if isinstance(stop, dict)
-                                 and str(stop.get("uic", "")).zfill(10) == arrival_uic),
-                                None,
-                            )
-                            arrival_track = (arrival_stop or {}).get("platform") or {}
-                            if isinstance(arrival_track, dict) and arrival_track.get("track"):
-                                journey["arrival_platform_track"] = str(arrival_track["track"])
+                    # L'arrêt d'arrivée est la destination de la section train,
+                    # pas forcément le terminus de la circulation.
+                    arrival_uic = journey.get("arrival_uic")
+                    if not arrival_uic:
+                        # Appel direct (hors boucle principale) : on le déduit de
+                        # la destination de la section train.
+                        section = next(
+                            (part for part in (journey.get("sections") or [])
+                             if isinstance(part, dict)
+                             and part.get("type") == "public_transport"),
+                            None,
+                        )
+                        arrival_uic = get_stop_uic((section or {}).get("to"))
+                    arrival_uic = str(arrival_uic).zfill(10) if arrival_uic else None
+                    if arrival_uic:
+                        arrival_stop = next(
+                            (stop for stop in (detail.get("JourneyStop") or [])
+                             if isinstance(stop, dict)
+                             and str(stop.get("uic", "")).zfill(10) == arrival_uic),
+                            None,
+                        )
+                        arrival_track = (arrival_stop or {}).get("platform") or {}
+                        if isinstance(arrival_track, dict) and arrival_track.get("track"):
+                            journey["arrival_platform_track"] = str(arrival_track["track"])
                     composition = detail.get("composition") or {}
                     elements = composition.get("element") if isinstance(
                         composition, dict
@@ -701,30 +739,15 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
                     if not isinstance(origin, dict):
                         _LOGGER.debug("G&C: invalid boarding stop for train %s", get_train_num(journey))
                         continue
-                    identifiers = [
-                        origin.get("id"),
-                        (origin.get("stop_point") or {}).get("id")
-                        if isinstance(origin.get("stop_point"), dict) else None,
-                        (origin.get("stop_area") or {}).get("id")
-                        if isinstance(origin.get("stop_area"), dict) else None,
-                    ]
                     _LOGGER.debug(
                         "G&C: train %s boarding stop IDs=%s, keys=%s",
-                        get_train_num(journey), identifiers, list(origin),
+                        get_train_num(journey), stop_identifiers(origin), list(origin),
                     )
-                    station_uic = ""
-                    for identifier in identifiers:
-                        if not isinstance(identifier, str):
-                            continue
-                        # SNCF stop IDs contain an 8-digit UIC, unlike
-                        # administrative IDs such as admin:fr:69123.
-                        match = re.search(
-                            r"(?<![0-9])([0-9]{8}|00[0-9]{8})(?![0-9])",
-                            identifier,
-                        )
-                        if match:
-                            station_uic = match.group(1).zfill(10)
-                            break
+                    uic = await self._async_stop_uic(origin)
+                    station_uic = uic.zfill(10) if uic else ""
+                    journey["departure_uic"] = uic
+                    destination = section.get("to") or {}
+                    journey["arrival_uic"] = await self._async_stop_uic(destination)
                     if station_uic:
                         by_station.setdefault(station_uic, []).append(journey)
                     else:
