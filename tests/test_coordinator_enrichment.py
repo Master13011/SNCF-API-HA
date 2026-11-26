@@ -94,7 +94,13 @@ def _course_detail() -> dict:
 
 @pytest.fixture
 def coordinator(hass, aioclient_mock) -> SncfUpdateCoordinator:
-    return SncfUpdateCoordinator(hass, _create_entry())
+    """Freeze the clock while the fixed-date example train is still active."""
+    reference_time = dt_util.parse_datetime("2026-11-09T06:00:00+00:00")
+    with patch(
+        "custom_components.sncf_trains.coordinator.dt_util.now",
+        return_value=reference_time,
+    ):
+        yield SncfUpdateCoordinator(hass, _create_entry())
 
 
 # --- _train_number -----------------------------------------------------------
@@ -364,6 +370,17 @@ async def test_timetable_ignores_malformed_items(coordinator, aioclient_mock):
     assert journey["platform_track"] == "5"
 
 
+async def test_arrived_train_does_not_trigger_enrichment(coordinator, aioclient_mock):
+    """An already arrived journey is intentionally excluded from live lookups."""
+    journey = _journey()
+    journey["arrival_date_time"] = "2026-11-09T05:00:00+00:00"
+
+    await coordinator._enrich_journeys([journey], STATION)
+
+    assert aioclient_mock.call_count == 0
+    assert "platform_track" not in journey
+
+
 # --- boarding station resolution in _async_update_data -----------------------
 
 
@@ -448,3 +465,72 @@ async def test_async_setup_builds_the_api_client(coordinator):
     client_class.assert_called_once()
     assert client_class.call_args.args[1] == "test_api_key"
     assert coordinator.api_client is client_class.return_value
+
+
+# --- Retard / suppression lus dans Gares & Connexions -------------------------
+
+REAL_DELAYED_ITEM = {
+    "trainNumber": "86024",
+    "scheduledTime": "2026-11-26T09:17:00+00:00",
+    "actualTime": "2026-11-26T09:32:00+00:00",
+    "informationStatus": {"trainStatus": "RETARD", "eventLevel": "Information", "delay": 15},
+    "traffic": {"eventStatus": "RETARD"},
+    "statusModification": None,
+}
+
+
+def test_gc_live_status_reads_delay_from_real_item():
+    live = SncfUpdateCoordinator._gc_live_status(REAL_DELAYED_ITEM)
+    assert live == {"delay": 15, "status": "RETARD", "cancelled": False}
+
+
+def test_gc_live_status_delay_from_actual_time_when_no_delay_field():
+    live = SncfUpdateCoordinator._gc_live_status(
+        {
+            "scheduledTime": "2026-11-26T09:17:00+00:00",
+            "actualTime": "2026-11-26T09:22:00+00:00",
+        }
+    )
+    assert live["delay"] == 5 and live["cancelled"] is False
+
+
+@pytest.mark.parametrize("label", ["SUPPRIME", "Supprimé", "ANNULE", "CANCELLED"])
+def test_gc_live_status_detects_cancellation(label):
+    live = SncfUpdateCoordinator._gc_live_status(
+        {"informationStatus": {"trainStatus": label, "delay": 0}}
+    )
+    assert live["cancelled"] is True
+
+
+def test_gc_live_status_without_information():
+    live = SncfUpdateCoordinator._gc_live_status({"circulationId": "x"}, None)
+    assert live == {"delay": None, "status": None, "cancelled": False}
+
+
+def test_apply_gc_delay_shifts_theoretical_times_only():
+    journey = {
+        "gc_delay_minutes": 15,
+        "departure_date_time": "20261126T101700",
+        "arrival_date_time": "20261126T103200",
+        "sections": [
+            {"type": "public_transport", "base_departure_date_time": "20261126T101700"}
+        ],
+    }
+    SncfUpdateCoordinator._apply_gc_delay(journey)
+    assert journey["departure_date_time"] == "20261126T103200"
+    assert journey["arrival_date_time"] == "20261126T104700"
+    SncfUpdateCoordinator._apply_gc_delay(journey)  # idempotent
+    assert journey["departure_date_time"] == "20261126T103200"
+
+
+def test_apply_gc_delay_keeps_navitia_realtime():
+    journey = {
+        "gc_delay_minutes": 15,
+        "departure_date_time": "20261126T102200",  # Navitia: déjà +5
+        "arrival_date_time": "20261126T103700",
+        "sections": [
+            {"type": "public_transport", "base_departure_date_time": "20261126T101700"}
+        ],
+    }
+    SncfUpdateCoordinator._apply_gc_delay(journey)
+    assert journey["departure_date_time"] == "20261126T102200"

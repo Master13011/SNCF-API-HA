@@ -4,7 +4,7 @@ import asyncio
 import logging
 import re
 import time
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any
 
 from aiohttp import ClientError, ClientTimeout
@@ -16,6 +16,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from homeassistant.util import dt as dt_util
 
 from .helpers import (
+    disruption_summary,
     format_time,
     get_duration,
     get_stop_uic,
@@ -63,6 +64,7 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
         # n'embarque pas les ``codes`` de l'arrêt (gares frontalières).
         self._uic_cache: dict[str, str | None] = {}
         self._uic_warned: set[str] = set()
+        self._circulation_cache: dict[tuple, dict] = {}
 
         self.update_interval_minutes = entry.options.get(
             CONF_UPDATE_INTERVAL,
@@ -324,21 +326,202 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
         except (TypeError, ValueError, AttributeError):
             return False
 
+    def _circulation_key(self, journey: dict, station_uic: str) -> tuple | None:
+        section = next(
+            (s for s in journey.get("sections", []) if isinstance(s, dict)
+             and s.get("type") == "public_transport"), {},
+        )
+        scheduled = parse_datetime(section.get("base_departure_date_time"))
+        number = get_train_num(journey)
+        arrival = journey.get("arrival_uic") or get_stop_uic(section.get("to"))
+        if not (scheduled and number and arrival):
+            return None
+        return (self._train_number(number), station_uic, str(arrival).zfill(10), scheduled.isoformat())
+
+    @staticmethod
+    def _cancelled(journey: dict) -> bool:
+        return str(journey.get("status", "")).upper() in {
+            "NO_SERVICE", "CANCELLED", "CANCELED"
+        } or disruption_summary(journey)["disruption_effect"] == "NO_SERVICE"
+
+    @staticmethod
+    def _gc_live_status(*sources: Any) -> dict[str, Any]:
+        """Lit retard / suppression dans les données Gares & Connexions.
+
+        Navitia ne fournit pas toujours le temps réel (data_freshness =
+        base_schedule) alors que G&C expose ``informationStatus`` (trainStatus,
+        delay) et ``actualTime``. Retourne ``{"delay", "status", "cancelled"}``
+        à partir de la première source exploitable.
+        """
+        import unicodedata
+
+        for source in sources:
+            if not isinstance(source, dict):
+                continue
+            info = source.get("informationStatus")
+            info = info if isinstance(info, dict) else {}
+            traffic = source.get("traffic")
+            traffic = traffic if isinstance(traffic, dict) else {}
+
+            status = info.get("trainStatus") or traffic.get("eventStatus")
+            texts = [
+                info.get("trainStatus"),
+                traffic.get("eventStatus"),
+                source.get("statusModification"),
+            ]
+            normalized = "".join(
+                char
+                for char in unicodedata.normalize(
+                    "NFKD", " ".join(str(x) for x in texts if x)
+                ).upper()
+                if not unicodedata.combining(char)
+            )
+            cancelled = any(w in normalized for w in ("SUPPR", "ANNUL", "CANCEL"))
+
+            delay = None
+            raw_delay = info.get("delay")
+            if isinstance(raw_delay, (int, float)) and not isinstance(raw_delay, bool):
+                delay = int(raw_delay)
+            elif isinstance(raw_delay, str) and raw_delay.strip().lstrip("-").isdigit():
+                delay = int(raw_delay.strip())
+            if delay is None:
+                try:
+                    actual = datetime.fromisoformat(
+                        str(source.get("actualTime")).replace("Z", "+00:00")
+                    )
+                    scheduled = datetime.fromisoformat(
+                        str(source.get("scheduledTime")).replace("Z", "+00:00")
+                    )
+                    delay = round((actual - scheduled).total_seconds() / 60)
+                except (TypeError, ValueError):
+                    delay = None
+
+            if delay is None and not status and not cancelled:
+                continue
+            return {"delay": delay, "status": status, "cancelled": cancelled}
+        return {"delay": None, "status": None, "cancelled": False}
+
+    def _record_gc_live_status(self, journey: dict, *sources: Any) -> None:
+        """Reporte retard / suppression G&C sur le trajet."""
+        live = self._gc_live_status(*sources)
+        _LOGGER.debug(
+            "G&C live status for train %s: %s", get_train_num(journey), live
+        )
+        if live["status"]:
+            journey["gc_status"] = live["status"]
+        if live["cancelled"]:
+            journey["status"] = "NO_SERVICE"
+        elif live["delay"] is not None:
+            journey["gc_delay_minutes"] = live["delay"]
+
+    @staticmethod
+    def _apply_gc_delay(journey: dict) -> None:
+        """Décale départ/arrivée du retard G&C quand Navitia n'a que le théorique."""
+        delay = journey.get("gc_delay_minutes")
+        if (
+            not isinstance(delay, int)
+            or delay <= 0
+            or journey.get("_gc_delay_applied")
+        ):
+            return
+        section = next(
+            (s for s in journey.get("sections") or []
+             if isinstance(s, dict) and s.get("type") == "public_transport"),
+            {},
+        )
+        departure = parse_datetime(journey.get("departure_date_time"))
+        base_departure = parse_datetime(section.get("base_departure_date_time"))
+        if departure and base_departure and departure != base_departure:
+            return  # Navitia fournit déjà un horaire temps réel
+        arrival = parse_datetime(journey.get("arrival_date_time"))
+        shift = timedelta(minutes=delay)
+        fmt = "%Y%m%dT%H%M%S"
+        if departure:
+            journey["departure_date_time"] = (departure + shift).strftime(fmt)
+        if arrival:
+            journey["arrival_date_time"] = (arrival + shift).strftime(fmt)
+        journey["_gc_delay_applied"] = True
+
     async def _enrich_journeys(self, journeys: list[dict], station_uic: str) -> None:
+        """Refresh live enrichment and retain last known data for each trip."""
+        now = dt_util.now()
+        active = []
+        for journey in journeys:
+            key = self._circulation_key(journey, station_uic)
+            arrival = parse_datetime(journey.get("arrival_date_time"))
+            if self._cancelled(journey):
+                self._circulation_cache.pop(key, None)
+                continue
+            if arrival:
+                known_delay = (
+                    (self._circulation_cache.get(key) or {})
+                    .get("fields", {})
+                    .get("gc_delay_minutes")
+                )
+                if isinstance(known_delay, int) and known_delay > 0:
+                    arrival += timedelta(minutes=known_delay)
+            if key and arrival:
+                cached = self._circulation_cache.get(key)
+                if cached and cached["expires"] <= now:
+                    self._circulation_cache.pop(key, None)
+                if arrival > now:
+                    self._circulation_cache.setdefault(key, {"fields": {}})["expires"] = arrival + timedelta(hours=1)
+            if not arrival or arrival > now:
+                active.append(journey)
+        try:
+            if active:
+                await self._fetch_enrichment(active, station_uic)
+        finally:
+            for journey in journeys:
+                key = self._circulation_key(journey, station_uic)
+                cached = self._circulation_cache.get(key)
+                if self._cancelled(journey):
+                    self._circulation_cache.pop(key, None)
+                    continue
+                if not cached:
+                    continue
+                fields = cached["fields"]
+                # Composition is a coherent snapshot: never mix two formations.
+                if journey.get("train_composition"):
+                    for field in ("train_composition", "train_units", "train_family",
+                                  "train_type", "train_cars", "train_cars_source"):
+                        fields[field] = journey.get(field)
+                else:
+                    journey.update({k: v for k, v in fields.items()
+                                    if k.startswith("train_") and k != "train_length"})
+                for field in (
+                    "platform_track",
+                    "arrival_platform_track",
+                    "train_length",
+                    "gc_delay_minutes",
+                    "gc_status",
+                ):
+                    if journey.get(field) not in (None, "", "N/A"):
+                        fields[field] = journey[field]
+                    elif field in fields:
+                        journey[field] = fields[field]
+            for journey in journeys:
+                if not self._cancelled(journey):
+                    self._apply_gc_delay(journey)
+
+    async def _fetch_enrichment(self, journeys: list[dict], station_uic: str) -> None:
         """Fetch boarding platforms and, where available, train compositions."""
         session = async_get_clientsession(self.hass)
         url = (
             "https://www.garesetconnexions.sncf/schedule-table/"
             f"Departures/{station_uic}"
         )
-        async with session.get(url, timeout=ClientTimeout(total=8)) as response:
-            if response.status != 200:
-                _LOGGER.debug("G&C timetable HTTP %s", response.status)
-                return
-            timetable = await response.json(content_type=None)
+        timetable = []
+        try:
+            async with session.get(url, timeout=ClientTimeout(total=8)) as response:
+                if response.status == 200:
+                    timetable = await response.json(content_type=None)
+                else:
+                    _LOGGER.debug("G&C timetable HTTP %s", response.status)
+        except (ClientError, asyncio.TimeoutError, ValueError) as err:
+            _LOGGER.debug("G&C timetable unavailable: %s", err)
         if not isinstance(timetable, list):
-            _LOGGER.debug("G&C timetable unexpected format at %s: %s", station_uic, type(timetable).__name__)
-            return
+            timetable = []
         _LOGGER.debug("G&C station %s: %d departures", station_uic, len(timetable))
 
         # A train may pass this station after starting at an earlier station.
@@ -353,7 +536,13 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
         details_cache: dict[tuple[str, str], dict | None] = {}
         for journey in journeys:
             number = self._train_number(get_train_num(journey))
-            candidates = by_number.get(number, [])
+            candidates = list(by_number.get(number, []))
+            cache_key = self._circulation_key(journey, station_uic)
+            cached = self._circulation_cache.get(cache_key)
+            if cached and cached.get("circulation_id"):
+                saved_id = cached["circulation_id"]
+                if not any(item.get("circulationId") == saved_id for item in candidates):
+                    candidates.append({"circulationId": saved_id})
             if not candidates:
                 _LOGGER.debug("G&C no departure match for train %s at station %s", number, station_uic)
                 continue
@@ -363,6 +552,7 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
                 circulation_id = item.get("circulationId")
                 if not isinstance(circulation_id, str) or not circulation_id:
                     if self._matching_departure(journey, item, station_uic):
+                        self._record_gc_live_status(journey, item)
                         platform = item.get("platform") or {}
                         if isinstance(platform, dict) and platform.get("track"):
                             journey["platform_track"] = str(platform["track"])
@@ -397,10 +587,19 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
 
                 detail = details_cache[key]
                 match_source = detail if detail else item
+                # Diagnostic : données brutes G&C (retard / suppression), tronquées.
+                _LOGGER.debug(
+                    "G&C raw timetable item for train %s: %.3000s", number, item
+                )
+                _LOGGER.debug(
+                    "G&C raw course detail for train %s: %.6000s", number, detail
+                )
                 if not self._matching_departure(journey, match_source, station_uic):
                     _LOGGER.debug("G&C time mismatch for train %s at station %s", number, station_uic)
                     continue
 
+                if cached is not None:
+                    cached["circulation_id"] = circulation_id
                 stop = next(
                     (s for s in (match_source.get("JourneyStop") or [])
                      if isinstance(s, dict) and str(s.get("uic", "")).zfill(10) == station_uic),
@@ -409,6 +608,7 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
                 platform = (stop or match_source).get("platform") or {}
                 if isinstance(platform, dict) and platform.get("track"):
                     journey["platform_track"] = str(platform["track"])
+                self._record_gc_live_status(journey, item, stop, match_source)
 
                 if detail:
                     # L'arrêt d'arrivée est la destination de la section train,
@@ -582,6 +782,12 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
     async def _async_update_data(self) -> dict[str, Any]:
         """Récupère les données de l'API SNCF."""
 
+        now = dt_util.now()
+        self._circulation_cache = {
+            key: value for key, value in self._circulation_cache.items()
+            if value["expires"] > now
+        }
+
         if not self.entry.subentries:
             _LOGGER.warning("Pas de subentries configurés")
             return {}
@@ -661,6 +867,12 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
                     entry, departure, arrival, datetime_str
                 )
                 if journeys:
+                    _LOGGER.warning(
+                        "Trajet '%s' : aucune réponse temps réel, horaires "
+                        "THÉORIQUES utilisés (retards et suppressions non "
+                        "visibles)",
+                        entry.title,
+                    )
                     self._fallback_retry_at.pop(subentry_id, None)
                     if new_ids:
                         pending_id_updates.append((entry, new_ids))
@@ -680,10 +892,28 @@ class SncfUpdateCoordinator(DataUpdateCoordinator):
                 continue
 
             _LOGGER.debug(
-                "Trajet '%s' : %d journey(s) reçu(s) depuis l'API",
+                "Trajet '%s' : %d journey(s) reçu(s) depuis l'API "
+                "(datetime demandé=%s)",
                 entry.title,
                 len(journeys),
+                datetime_str,
             )
+            for received in journeys:
+                if not isinstance(received, dict):
+                    continue
+                received_section = next(
+                    (s for s in received.get("sections") or []
+                     if isinstance(s, dict) and s.get("type") == "public_transport"),
+                    {},
+                )
+                _LOGGER.debug(
+                    "Train %s : départ=%s (base=%s) data_freshness=%s statut=%s",
+                    get_train_num(received),
+                    received.get("departure_date_time"),
+                    received_section.get("base_departure_date_time"),
+                    received_section.get("data_freshness"),
+                    received.get("status") or "-",
+                )
 
             # ---------------------------------------------------------
             # Filtrage des trajets

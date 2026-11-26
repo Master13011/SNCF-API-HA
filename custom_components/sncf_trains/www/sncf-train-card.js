@@ -140,7 +140,12 @@ class SncfTrainCard extends HTMLElement {
     const arrivalInfo=showArrivalPlatform?`<div class="platform-line arrival-platform"><span class="platform-label">Voie</span><strong>${this._escape(arrivalPlatform)}</strong></div>`:'';
     const units=Number(a.train_units);
     const showUnits=this.config.show_train_units&&Number.isInteger(units)&&units>0;
-    const trainType=String(a.train_type||'').trim();
+    const rawTrainType=String(a.train_type||'').trim();
+    const knownType=rawTrainType&&!['N/A','UNKNOWN','UNAVAILABLE','NONE','NULL'].includes(rawTrainType.toUpperCase());
+    const hauled=a.train_family==='Matériel tracté';
+    const trainType=hauled
+      ?`Train tracté${knownType?' · '+rawTrainType.replace(/^Locomotive\s+/i,''):''}`
+      :knownType?rawTrainType:'';
     const showType=this.config.show_train_type&&trainType;
     const departureInfo=showPlatform?`<div class="platform-line departure-platform"><span class="platform-label">Voie</span><strong>${this._escape(platform)}</strong></div>`:'';
     const trainInfo=[
@@ -244,7 +249,7 @@ class SncfTrainCard extends HTMLElement {
         t.entity_id,t.attributes.departure_time,t.attributes.arrival_time,
         t.attributes.base_departure_time,t.attributes.base_arrival_time,
         t.attributes.delay_minutes,t.attributes.has_delay,
-        t.attributes.platform,t.attributes.arrival_platform,t.attributes.train_units,t.attributes.train_type
+        t.attributes.platform,t.attributes.arrival_platform,t.attributes.train_units,t.attributes.train_type,t.attributes.train_family
       ])]));
       // Avoid replacing the DOM on every Home Assistant state update.
       // This prevents focus/scroll jumps on iOS.

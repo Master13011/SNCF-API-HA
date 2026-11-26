@@ -166,3 +166,46 @@ def test_invalid_elements_are_ignored():
     result = analyser_composition(["not a dict", {"numeroAffectation": "B85075"}])
     assert result["train_composition"] == ["B85075"]
     assert result["train_cars"] is None
+
+
+@pytest.mark.parametrize("number", ["22313", "22355"])
+def test_locomotive_without_separator(number):
+    result = identifier_materiel(f"0KSRABB{number}")
+    assert result is not None
+    assert result["reference"] == f"BB{number}"
+    assert result["type"] == "Locomotive BB 22200"
+    assert result["voitures"] is None
+
+
+@pytest.mark.parametrize(
+    "references",
+    [
+        ("0KSRABB22313", "0KCBYLGC722N", "0KCBYLJH787L"),
+        ("0KCBYLJH787U", "0KSRABB22355"),
+    ],
+)
+def test_hauled_train_with_unknown_carriages(references):
+    result = analyser_composition(_elements(*references))
+    assert result["train_family"] == "Matériel tracté"
+    assert result["train_type"] == "Locomotive BB 22200"
+    assert result["train_units"] is None
+    assert result["train_cars"] is None
+    assert result["train_cars_source"] == "inconnue"
+    assert result["train_composition"] == list(references)
+
+
+def test_locomotive_with_known_trainset_is_not_classified_as_hauled():
+    result = analyser_composition(_elements("0KSRABB22313", "Z24595"))
+    assert result["train_family"] is None
+    assert result["train_type"] is None
+
+
+def test_unknown_carriage_reference_is_not_guessed():
+    assert identifier_materiel("0KCBYLJH787U") is None
+    assert identifier_materiel("ABCBB22313") is None
+
+
+def test_duplicate_trainset_still_counted_once():
+    result = analyser_composition(_elements("0KSRA-Z24727", "0KSRA-Z24727"))
+    assert result["train_units"] == 1
+    assert result["train_type"] == "TER 2N NG"
