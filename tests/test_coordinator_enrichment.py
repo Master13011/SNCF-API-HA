@@ -373,7 +373,7 @@ async def test_timetable_ignores_malformed_items(coordinator, aioclient_mock):
 async def test_arrived_train_does_not_trigger_enrichment(coordinator, aioclient_mock):
     """An already arrived journey is intentionally excluded from live lookups."""
     journey = _journey()
-    journey["arrival_date_time"] = "20261109T050000"
+    journey["arrival_date_time"] = "2026-11-09T05:00:00+00:00"
 
     await coordinator._enrich_journeys([journey], STATION)
 
