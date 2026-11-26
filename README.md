@@ -109,7 +109,9 @@ Obtenez votre clé ici : https://numerique.sncf.com/startup/api/ -> Site HS
 - Durée totale (`duration_minutes`)
 - Mode, direction, numéro
 - Voie de départ (`platform`) et d'arrivée (`arrival_platform`) lorsqu'elles sont disponibles
-- Nombre de rames (`train_units`), composition et type de matériel lorsqu'ils sont connus
+- Nombre de rames (`train_units`), composition brute (`train_composition`), famille (`train_family`) et type de matériel (`train_type`) lorsqu'ils sont connus
+- Longueur (`train_length`), nombre de voitures (`train_cars`) et source du nombre de voitures (`train_cars_source`), selon les données disponibles
+- Pour un train tracté identifié, `train_family` vaut `Matériel tracté` ; `train_type` peut valoir `Locomotive BB 22200` sans que le nombre de rames ou de voitures soit connu.
 
 ---
 
@@ -241,6 +243,10 @@ Le `device_id` correspond à l'appareil créé lors de la configuration du traje
 | `update_interval` | `number` | `30` | Rafraîchissement de l'affichage, en secondes (minimum 5). Les anciennes valeurs en millisecondes (≥ 5000) sont converties automatiquement
 | `show_countdown` | `boolean` | `true` | Compte à rebours avant le départ
 | `show_track` | `boolean` | `true` | Barre de progression du train
+| `show_platform` | `boolean` | `true` | Voie de départ |
+| `show_arrival_platform` | `boolean` | `true` | Voie d’arrivée |
+| `show_train_units` | `boolean` | `true` | Nombre de rames lorsqu’il est connu |
+| `show_train_type` | `boolean` | `true` | Type de matériel, par exemple `Train tracté · BB 22200` |
 | `show_duration` | `boolean` | `true` | Durée du trajet
 | `show_status` | `boolean` | `true` | Statut (à l'heure, retard, en circulation, arrivé)
 | `train_emoji` | `string` | `mdi:train` | Icône `mdi:` ou emoji affiché sur la barre
