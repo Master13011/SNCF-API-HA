@@ -94,7 +94,13 @@ def _course_detail() -> dict:
 
 @pytest.fixture
 def coordinator(hass, aioclient_mock) -> SncfUpdateCoordinator:
-    return SncfUpdateCoordinator(hass, _create_entry())
+    """Freeze the clock while the fixed-date example train is still active."""
+    reference_time = dt_util.parse_datetime("2026-11-09T06:00:00+00:00")
+    with patch(
+        "custom_components.sncf_trains.coordinator.dt_util.now",
+        return_value=reference_time,
+    ):
+        yield SncfUpdateCoordinator(hass, _create_entry())
 
 
 # --- _train_number -----------------------------------------------------------
@@ -362,6 +368,17 @@ async def test_timetable_ignores_malformed_items(coordinator, aioclient_mock):
     await coordinator._enrich_journeys([journey], STATION)
 
     assert journey["platform_track"] == "5"
+
+
+async def test_arrived_train_does_not_trigger_enrichment(coordinator, aioclient_mock):
+    """An already arrived journey is intentionally excluded from live lookups."""
+    journey = _journey()
+    journey["arrival_date_time"] = "20261109T050000"
+
+    await coordinator._enrich_journeys([journey], STATION)
+
+    assert aioclient_mock.call_count == 0
+    assert "platform_track" not in journey
 
 
 # --- boarding station resolution in _async_update_data -----------------------
